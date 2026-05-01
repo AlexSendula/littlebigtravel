@@ -58,6 +58,21 @@ Covers map and place provider abstraction contracts.
 
 Update this file when provider IDs, default provider selection, Photon request construction, Photon parsing, or future provider placeholders change.
 
+### `tests/unit/imports.test.ts`
+
+Covers the Gmail import domain foundation.
+
+- Gmail query construction uses trip dates, destination/base names, and booking keywords.
+- Candidate scoring rejects irrelevant email-like sources and accepts likely travel/booking sources.
+- Deterministic extraction creates a high-confidence starting-travel candidate from structured confirmation text.
+- High-confidence flight imports create one imported starting travel item and one arrival base.
+- Re-importing the same source id updates the imported item instead of duplicating it.
+- Matching manual planner items are not silently overwritten by imported candidates.
+- Gmail incremental history id selection keeps the highest available history id.
+- Import run coordination collapses repeated triggers into one in-flight run plus one follow-up run.
+
+Update this file when Gmail import source metadata, deterministic extraction, candidate scoring, source deduplication, or import coalescing changes.
+
 ### `tests/unit/timeline-defaults.test.ts`
 
 Covers default ordering for unknown times.
@@ -96,6 +111,19 @@ Covers core planner flows.
 - Time picker closes after selection without focusing notes.
 
 Update this feature when planner creation, linked-item generation, deletion confirmation, activity map visibility, stay generation, or picker close behavior changes.
+
+### `features/imports.feature`
+
+Covers foreground Gmail auto-import behavior.
+
+- Connecting Gmail through the trip menu exposes connected state.
+- Flight confirmation fixtures create one imported starting travel item and a linked arrival/base flow.
+- Hotel confirmation fixtures create one imported stay with linked check-in/check-out moments.
+- Repeated visible Gmail checks do not duplicate imported items.
+- Imported confirmations do not overwrite matching manual planner items.
+- Disconnecting Gmail stops later foreground import checks.
+
+Update this feature when Gmail connection UI, foreground import triggering, duplicate prevention, imported item generation, or disconnect behavior changes.
 
 ## Visual Snapshots
 
@@ -188,6 +216,17 @@ Reusable BDD UI actions:
 
 Update this file when UI selectors, sheet-opening behavior, or deterministic gesture helpers change.
 
+### `tests/bdd/steps/import.steps.ts`
+
+BDD Gmail import steps:
+
+- Inject deterministic in-browser Gmail fixture messages.
+- Connect and disconnect the local Gmail import provider through the trip menu.
+- Trigger a foreground Gmail check without waiting for the 60-second polling interval.
+- Assert imported starting travel and stay counts through IndexedDB.
+
+Update this file when the Gmail test fixture shape, import provider test hook, trip menu Gmail controls, or imported item metadata changes.
+
 ### `src/performance/perfMetrics.ts`
 
 Development-only render and timing instrumentation used by `npm run test:perf`.
@@ -206,6 +245,9 @@ These are intentionally not covered yet:
 - Exhaustive gesture physics and every possible swipe angle.
 - Offline reinstall/data persistence behavior.
 - Sharing, auth, subscriptions, payments, sync, and backend behavior.
+- Real Gmail OAuth/API integration, token expiry, and Google API verification flow.
+- Gmail attachment/PDF/OCR parsing.
+- Local LLM extraction engine behavior.
 - Accessibility audits beyond selectors, roles, and current interaction checks.
 
 ## Maintenance Rule

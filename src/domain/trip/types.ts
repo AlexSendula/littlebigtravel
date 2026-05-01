@@ -73,7 +73,11 @@ export type PlannerItem = {
   sourceStopId?: string;
   sourceEventKey?: string;
   showOnMap?: boolean;
-  source: "seed" | "manual";
+  source: "seed" | "manual" | "imported";
+  importProvider?: "gmail";
+  importSourceId?: string;
+  importImportedAt?: string;
+  importConfidence?: number;
   order: number;
   breakdown?: PlannerBreakdownEntry[];
 };

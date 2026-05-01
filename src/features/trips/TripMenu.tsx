@@ -8,8 +8,9 @@ import {
   type PointerEvent as ReactPointerEvent,
   type TouchEvent,
 } from "react";
-import { Archive, Plus, Trash2 } from "lucide-react";
+import { Archive, Mail, Plus, RefreshCcw, Trash2, Unplug } from "lucide-react";
 import type { Trip } from "../../domain/trip/types";
+import type { GmailAutoImportStatus } from "../imports/useGmailAutoImport";
 import { formatPlannerItemDate } from "../../planner";
 import { RenderMetric, useRenderMetric } from "../../performance/perfMetrics";
 
@@ -390,6 +391,7 @@ function TripDrawer({
   trips,
   archivedTrips,
   activeTripId,
+  gmailImport,
   newTripName,
   onNewTripNameChange,
   onCreateTrip,
@@ -403,6 +405,7 @@ function TripDrawer({
   trips: Trip[];
   archivedTrips: Trip[];
   activeTripId?: string;
+  gmailImport: GmailAutoImportStatus;
   newTripName: string;
   onNewTripNameChange: (value: string) => void;
   onCreateTrip: () => void;
@@ -714,6 +717,7 @@ function TripDrawer({
               ) : null}
             </div>
           </header>
+          <GmailImportStatusRow gmailImport={gmailImport} />
           {showCreateForm ? (
             <div
               className={`trip-drawer-create-shell ${!hasTrips ? "empty" : ""} ${createOpen && hasTrips ? "inline" : ""} ${
@@ -798,12 +802,52 @@ function TripDrawer({
   );
 }
 
+function formatImportLastChecked(lastCheckedAt?: string) {
+  if (!lastCheckedAt) return "Not checked yet";
+  const parsed = new Date(lastCheckedAt);
+  if (Number.isNaN(parsed.getTime())) return "Last checked recently";
+  return `Last checked ${parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+function GmailImportStatusRow({ gmailImport }: { gmailImport: GmailAutoImportStatus }) {
+  const statusText =
+    gmailImport.status === "connected"
+      ? gmailImport.isRunning
+        ? "Checking Gmail..."
+        : formatImportLastChecked(gmailImport.lastCheckedAt)
+      : gmailImport.status === "setup-needed"
+        ? "OAuth setup needed"
+        : gmailImport.status === "error"
+          ? gmailImport.error ?? "Import failed"
+          : "Disconnected";
+  const actionLabel = gmailImport.connected ? "Disconnect Gmail" : "Connect Gmail";
+
+  return (
+    <section className={`gmail-import-status ${gmailImport.status}`} aria-label="Gmail auto-import">
+      <div>
+        <Mail size={16} aria-hidden="true" />
+        <span>Gmail auto-import</span>
+        <small>{statusText}</small>
+      </div>
+      <button
+        type="button"
+        onClick={gmailImport.connected ? gmailImport.disconnect : gmailImport.connect}
+        aria-label={actionLabel}
+        title={actionLabel}
+      >
+        {gmailImport.connected ? <Unplug size={16} /> : <RefreshCcw size={16} />}
+      </button>
+    </section>
+  );
+}
+
 export function TripMenu({
   isLoading,
   activeTrip,
   trips,
   archivedTrips,
   activeTripId,
+  gmailImport,
   newTripName,
   onNewTripNameChange,
   onCreateTrip,
@@ -818,6 +862,7 @@ export function TripMenu({
   trips: Trip[];
   archivedTrips: Trip[];
   activeTripId?: string;
+  gmailImport: GmailAutoImportStatus;
   newTripName: string;
   onNewTripNameChange: (value: string) => void;
   onCreateTrip: () => void;
@@ -949,6 +994,7 @@ export function TripMenu({
         trips={trips}
         archivedTrips={archivedTrips}
         activeTripId={activeTripId}
+        gmailImport={gmailImport}
         newTripName={newTripName}
         onNewTripNameChange={onNewTripNameChange}
         onCreateTrip={onCreateTrip}

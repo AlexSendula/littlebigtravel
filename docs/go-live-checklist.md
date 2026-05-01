@@ -135,6 +135,34 @@ Current development provider notes:
 - `[ ]` Avoid scraping or republishing third-party content without permission.
 - `[ ]` Store only third-party data allowed by each provider's terms.
 
+## Gmail And Email Import
+
+Current direction:
+
+- Keep the first Gmail import phase backend-free and PWA-only.
+- User explicitly connects Gmail.
+- Gmail content is fetched directly from Google to the user's device.
+- The app checks on open/resume and while visible; true background push sync is deferred.
+- Deterministic local extraction ships first; local LLM/PDF/OCR extraction remains a future engine behind an interface.
+
+Checklist:
+
+- `[x]` Add a local import domain model for sources, candidates, decisions, and runs.
+- `[x]` Add Gmail provider abstraction and foreground import coordinator.
+- `[x]` Avoid mandatory review queues for high-confidence imports.
+- `[x]` Store imported Gmail source ids locally to prevent repeated imports.
+- `[ ]` Implement real Gmail OAuth client configuration.
+- `[ ]` Decide final Gmail OAuth scopes and keep them minimal.
+- `[ ]` Complete Google OAuth app verification before commercial launch.
+- `[ ]` Complete any required Gmail API restricted/sensitive scope security review.
+- `[ ]` Add explicit Gmail connect/disconnect and data deletion wording to the privacy policy.
+- `[ ]` Define token expiry and reconnect UX for production.
+- `[ ]` Add production-safe error handling for quota, auth, offline, and provider failures.
+- `[ ]` Test installed PWA app-open sync on iPhone Safari and Android Chrome.
+- `[ ]` Decide whether email attachment/PDF/OCR parsing is needed for launch.
+- `[ ]` Validate local LLM feasibility separately before shipping model inference.
+- `[ ]` Confirm that email import behavior complies with Gmail API User Data Policy and Limited Use requirements.
+
 ## Product Readiness
 
 - `[~]` Mobile-first planner and map interaction.
@@ -231,3 +259,4 @@ Current development provider notes:
 - `[ ]` Which paid feature is compelling enough to charge for?
 - `[ ]` What happens if a user uninstalls the PWA before cloud backup exists?
 - `[ ]` What data do we absolutely need to collect, and what can we avoid collecting?
+- `[ ]` Is Gmail import required for launch, or can it remain beta until OAuth verification and extraction quality are proven?

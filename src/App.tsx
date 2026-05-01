@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 import { DestinationRail } from "./features/map/DestinationRail";
+import { useGmailAutoImport } from "./features/imports/useGmailAutoImport";
 import { TripMenu } from "./features/trips/TripMenu";
 import TravelMap from "./TravelMap";
 import { buildPlannerMapData } from "./plannerMap";
@@ -282,6 +283,13 @@ function App() {
   const swipeLastRef = useRef<{ x: number; y: number } | null>(null);
   const visibleTrips = useMemo(() => trips.filter((trip) => !trip.archivedAt), [trips]);
   const archivedTrips = useMemo(() => trips.filter((trip) => trip.archivedAt), [trips]);
+  const gmailImport = useGmailAutoImport({
+    activeTrip,
+    plannerItems,
+    customBases,
+    setPlannerItems,
+    setCustomBases,
+  });
 
   const selectedStop = useMemo(() => mapStopById.get(selectedStopId), [mapStopById, selectedStopId]);
   const selectedIndex = useMemo(
@@ -433,6 +441,7 @@ function App() {
         onArchiveTrip={handleArchiveTrip}
         onRestoreTrip={restoreTrip}
         onOpenChange={setTripMenuActive}
+        gmailImport={gmailImport}
       />
 
       <TravelMap stops={mapStops} legs={mapLegs} stopById={mapStopById} selectedStop={selectedStop} onSelectStop={selectStop} />

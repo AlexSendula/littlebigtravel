@@ -64,7 +64,11 @@ export type PlannerItem = {
   sourceStopId?: string;
   sourceEventKey?: string;
   showOnMap?: boolean;
-  source: "seed" | "manual";
+  source: "seed" | "manual" | "imported";
+  importProvider?: "gmail";
+  importSourceId?: string;
+  importImportedAt?: string;
+  importConfidence?: number;
   order: number;
   breakdown?: PlannerBreakdownEntry[];
 };
@@ -242,7 +246,7 @@ function isPlannerKind(value: string): value is PlannerItemKind {
 }
 
 function isPlannerSource(value: string): value is PlannerItem["source"] {
-  return value === "seed" || value === "manual";
+  return value === "seed" || value === "manual" || value === "imported";
 }
 
 function isPlannerBreakdownEntry(value: unknown): value is PlannerBreakdownEntry {
@@ -327,6 +331,10 @@ function isPlannerItem(value: unknown): value is PlannerItem {
     (candidate.hiddenAutoLinkedItems === undefined ||
       (Array.isArray(candidate.hiddenAutoLinkedItems) && candidate.hiddenAutoLinkedItems.every((value) => typeof value === "string"))) &&
     (candidate.showOnMap === undefined || typeof candidate.showOnMap === "boolean") &&
+    (candidate.importProvider === undefined || candidate.importProvider === "gmail") &&
+    (candidate.importSourceId === undefined || typeof candidate.importSourceId === "string") &&
+    (candidate.importImportedAt === undefined || typeof candidate.importImportedAt === "string") &&
+    (candidate.importConfidence === undefined || typeof candidate.importConfidence === "number") &&
     (transportMode === undefined ||
       transportMode === "flight" ||
       transportMode === "car" ||

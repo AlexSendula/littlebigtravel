@@ -399,6 +399,72 @@ button:focus-visible,
   animation: trip-drawer-content-in 190ms ease both;
 }
 
+.gmail-import-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, #8fa68f 28%, var(--line));
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.48);
+  color: var(--ink);
+}
+
+.gmail-import-status.setup-needed,
+.gmail-import-status.error {
+  border-color: color-mix(in srgb, #c26b6b 32%, var(--line));
+}
+
+.gmail-import-status > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, auto);
+  column-gap: 7px;
+  row-gap: 1px;
+  align-items: center;
+  min-width: 0;
+}
+
+.gmail-import-status svg {
+  color: color-mix(in srgb, #536b54 76%, var(--ink));
+}
+
+.gmail-import-status.setup-needed svg,
+.gmail-import-status.error svg {
+  color: color-mix(in srgb, #8e3535 70%, var(--ink));
+}
+
+.gmail-import-status span {
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.gmail-import-status small {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-weight: 720;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gmail-import-status button {
+  display: grid;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, #8fa68f 34%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, #8fa68f 10%, rgb(255 255 255 / 0.74));
+  color: color-mix(in srgb, #536b54 74%, var(--ink));
+}
+
 @keyframes trip-drawer-content-in {
   from {
     opacity: 0;
