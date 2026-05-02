@@ -58,6 +58,45 @@ export type ImportDecision = {
   decidedAt: string;
 };
 
+export type ImportDebugSource = {
+  id: string;
+  subject: string;
+  from?: string;
+  receivedAt?: string;
+  score?: number;
+  selected: boolean;
+  reason: string;
+};
+
+export type ImportDebugCandidate = {
+  id: string;
+  sourceId: string;
+  kind: ImportCandidateKind;
+  confidence: number;
+  title: string;
+  startDate?: string;
+  endDate?: string;
+  selected?: boolean;
+  reason?: string;
+};
+
+export type ImportRunDebug = {
+  queries: string[];
+  querySignature: string;
+  forceFullSearch?: boolean;
+  usedHistory?: boolean;
+  staleHistory?: boolean;
+  rawMessageCount?: number;
+  metadataSourceCount?: number;
+  fullFetchCount?: number;
+  skippedMessageCount?: number;
+  fetchedSourceCount: number;
+  selectedSourceCount: number;
+  sources: ImportDebugSource[];
+  candidates: ImportDebugCandidate[];
+  decisions: Array<Pick<ImportDecision, "sourceId" | "candidateId" | "status" | "reason">>;
+};
+
 export type ImportRun = {
   id: string;
   provider: ImportProviderId;
@@ -72,6 +111,7 @@ export type ImportRun = {
   ignoredCount: number;
   failedCount: number;
   errors: string[];
+  debug?: ImportRunDebug;
 };
 
 export type ImportProviderTripContext = {
@@ -89,4 +129,3 @@ export type ExtractionEngine = {
   id: string;
   extractCandidates: (source: ImportSource, context: ImportProviderTripContext) => ImportCandidate[];
 };
-

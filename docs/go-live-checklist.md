@@ -151,13 +151,13 @@ Checklist:
 - `[x]` Add Gmail provider abstraction and foreground import coordinator.
 - `[x]` Avoid mandatory review queues for high-confidence imports.
 - `[x]` Store imported Gmail source ids locally to prevent repeated imports.
-- `[ ]` Implement real Gmail OAuth client configuration.
-- `[ ]` Decide final Gmail OAuth scopes and keep them minimal.
+- `[x]` Implement local real Gmail OAuth client configuration through Google Identity Services.
+- `[x]` Keep the first Gmail scope minimal: `https://www.googleapis.com/auth/gmail.readonly`.
 - `[ ]` Complete Google OAuth app verification before commercial launch.
 - `[ ]` Complete any required Gmail API restricted/sensitive scope security review.
 - `[ ]` Add explicit Gmail connect/disconnect and data deletion wording to the privacy policy.
-- `[ ]` Define token expiry and reconnect UX for production.
-- `[ ]` Add production-safe error handling for quota, auth, offline, and provider failures.
+- `[x]` Define local token expiry and reconnect UX.
+- `[ ]` Add production-safe error handling for quota, offline, and provider failures.
 - `[ ]` Test installed PWA app-open sync on iPhone Safari and Android Chrome.
 - `[ ]` Decide whether email attachment/PDF/OCR parsing is needed for launch.
 - `[ ]` Validate local LLM feasibility separately before shipping model inference.

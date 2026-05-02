@@ -79,12 +79,20 @@ function PlannerLoadingShell() {
 function PlannerTripGate({
   onClose,
   newTripName,
+  newTripStartDate,
+  newTripEndDate,
   onNewTripNameChange,
+  onNewTripStartDateChange,
+  onNewTripEndDateChange,
   onCreateTrip,
 }: {
   onClose: () => void;
   newTripName: string;
+  newTripStartDate: string;
+  newTripEndDate: string;
   onNewTripNameChange: (value: string) => void;
+  onNewTripStartDateChange: (value: string) => void;
+  onNewTripEndDateChange: (value: string) => void;
   onCreateTrip: () => void;
 }) {
   const canCreateTrip = newTripName.trim().length > 0;
@@ -119,6 +127,25 @@ function PlannerTripGate({
             data-lpignore="true"
             data-form-type="other"
           />
+          <div className="planner-trip-gate-date-row">
+            <input
+              type="date"
+              value={newTripStartDate}
+              onChange={(event) => onNewTripStartDateChange(event.target.value)}
+              name="lbt-planner-trip-start-date"
+              autoComplete="off"
+              aria-label="Trip start date"
+            />
+            <span aria-hidden="true">to</span>
+            <input
+              type="date"
+              value={newTripEndDate}
+              onChange={(event) => onNewTripEndDateChange(event.target.value)}
+              name="lbt-planner-trip-end-date"
+              autoComplete="off"
+              aria-label="Trip end date"
+            />
+          </div>
           <button type="submit" disabled={!canCreateTrip}>
             <Plus size={18} />
             <span>Create trip</span>
@@ -279,6 +306,8 @@ function App() {
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [tripMenuActive, setTripMenuActive] = useState(false);
   const [newTripName, setNewTripName] = useState("");
+  const [newTripStartDate, setNewTripStartDate] = useState("");
+  const [newTripEndDate, setNewTripEndDate] = useState("");
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const swipeLastRef = useRef<{ x: number; y: number } | null>(null);
   const visibleTrips = useMemo(() => trips.filter((trip) => !trip.archivedAt), [trips]);
@@ -345,9 +374,14 @@ function App() {
 
   const handleCreateTrip = useCallback(() => {
     if (!newTripName.trim()) return;
-    createTrip(newTripName);
+    createTrip(newTripName, {
+      startDate: newTripStartDate || undefined,
+      endDate: newTripEndDate || undefined,
+    });
     setNewTripName("");
-  }, [createTrip, newTripName]);
+    setNewTripStartDate("");
+    setNewTripEndDate("");
+  }, [createTrip, newTripEndDate, newTripName, newTripStartDate]);
 
   const handleSelectTrip = useCallback(
     (tripId: string) => {
@@ -434,7 +468,11 @@ function App() {
         archivedTrips={archivedTrips}
         activeTripId={activeTripId}
         newTripName={newTripName}
+        newTripStartDate={newTripStartDate}
+        newTripEndDate={newTripEndDate}
         onNewTripNameChange={setNewTripName}
+        onNewTripStartDateChange={setNewTripStartDate}
+        onNewTripEndDateChange={setNewTripEndDate}
         onCreateTrip={handleCreateTrip}
         onSelectTrip={handleSelectTrip}
         onDeleteTrip={handleDeleteTrip}
@@ -494,7 +532,11 @@ function App() {
         <PlannerTripGate
           onClose={() => setPlannerOpen(false)}
           newTripName={newTripName}
+          newTripStartDate={newTripStartDate}
+          newTripEndDate={newTripEndDate}
           onNewTripNameChange={setNewTripName}
+          onNewTripStartDateChange={setNewTripStartDate}
+          onNewTripEndDateChange={setNewTripEndDate}
           onCreateTrip={handleCreateTrip}
         />
       ) : null}

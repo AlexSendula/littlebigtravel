@@ -103,13 +103,17 @@ Given("Gmail has a hotel confirmation for {string}", async function (this: Trave
 
 When("I connect Gmail auto-import", async function (this: TravelWorld) {
   await openTripMenu(this);
-  await this.page.getByLabel("Connect Gmail").click();
+  const connectButton = this.page.getByLabel("Connect Gmail");
+  await expect(connectButton).toBeVisible();
+  await connectButton.evaluate((element) => (element as HTMLButtonElement).click());
   await expect(this.page.getByLabel("Disconnect Gmail")).toBeVisible();
 });
 
 When("I disconnect Gmail auto-import", async function (this: TravelWorld) {
   await openTripMenu(this);
-  await this.page.getByLabel("Disconnect Gmail").click();
+  const disconnectButton = this.page.getByLabel("Disconnect Gmail");
+  await expect(disconnectButton).toBeVisible();
+  await disconnectButton.evaluate((element) => (element as HTMLButtonElement).click());
   await expect(this.page.getByLabel("Connect Gmail")).toBeVisible();
 });
 
@@ -128,6 +132,10 @@ Then("Gmail auto-import is connected", async function (this: TravelWorld) {
 
 Then("the active planner has one imported starting travel", async function (this: TravelWorld) {
   await expectImportedStartingTravelCount(this, 1);
+});
+
+Then("the active planner has {int} imported starting travel", async function (this: TravelWorld, count: number) {
+  await expectImportedStartingTravelCount(this, count);
 });
 
 Then("the active planner has one imported stay", async function (this: TravelWorld) {

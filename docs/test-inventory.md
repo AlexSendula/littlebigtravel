@@ -62,16 +62,30 @@ Update this file when provider IDs, default provider selection, Photon request c
 
 Covers the Gmail import domain foundation.
 
-- Gmail query construction uses trip dates, destination/base names, and booking keywords.
+- Gmail query construction uses destination/base names, booking keywords, and a received-email recency window instead of trip-date `after:` / `before:` filters.
 - Candidate scoring rejects irrelevant email-like sources and accepts likely travel/booking sources.
 - Deterministic extraction creates a high-confidence starting-travel candidate from structured confirmation text.
+- Deterministic extraction handles natural flight route text, month-name dates, AM/PM times, and trip-year inference.
 - High-confidence flight imports create one imported starting travel item and one arrival base.
 - Re-importing the same source id updates the imported item instead of duplicating it.
 - Matching manual planner items are not silently overwritten by imported candidates.
 - Gmail incremental history id selection keeps the highest available history id.
+- Gmail query context changes force fresh search instead of stale history-only sync.
+- Manual Gmail checks bypass incremental history and perform a fresh full query search.
+- Gmail query context can use meaningful trip-name location words while ignoring generic test/planning words.
+- Gmail import cursor, decisions, and reviewed source ids are projected per active trip.
+- Gmail import publishes planner snapshots only when applied decisions changed planner data.
+- Extracted Gmail candidates outside the active trip date/place context are rejected before planner mutation.
+- Stale Gmail history ids are dropped when fallback search cannot provide a newer cursor.
+- Gmail REST URLs are built with the expected search, metadata, and message parameters.
+- Gmail API messages are parsed into import sources with headers, snippets, body text, dates, and attachment names.
+- Gmail API fetches expose debug counts for raw ids, metadata sources, and full-message sources.
+- Stale Gmail history falls back to query search.
+- Unavailable Gmail message ids from incremental history are skipped and recovered through query search.
+- Gmail authorization failures are classified for reconnect UX.
 - Import run coordination collapses repeated triggers into one in-flight run plus one follow-up run.
 
-Update this file when Gmail import source metadata, deterministic extraction, candidate scoring, source deduplication, or import coalescing changes.
+Update this file when Gmail import source metadata, Gmail API request handling, deterministic extraction, candidate scoring, source deduplication, or import coalescing changes.
 
 ### `tests/unit/timeline-defaults.test.ts`
 
@@ -90,6 +104,7 @@ Update this file when unknown-time sorting, generated moment ordering, or daily 
 Covers trip-level local-first behavior.
 
 - Create the first trip from an empty app.
+- Create a trip with an optional date range.
 - Create multiple trips and switch the active trip.
 - Unarchive an archived trip without stealing the active trip.
 
@@ -120,6 +135,7 @@ Covers foreground Gmail auto-import behavior.
 - Flight confirmation fixtures create one imported starting travel item and a linked arrival/base flow.
 - Hotel confirmation fixtures create one imported stay with linked check-in/check-out moments.
 - Repeated visible Gmail checks do not duplicate imported items.
+- Switching active trips scopes Gmail checks to the selected trip before applying imported items.
 - Imported confirmations do not overwrite matching manual planner items.
 - Disconnecting Gmail stops later foreground import checks.
 
@@ -245,7 +261,7 @@ These are intentionally not covered yet:
 - Exhaustive gesture physics and every possible swipe angle.
 - Offline reinstall/data persistence behavior.
 - Sharing, auth, subscriptions, payments, sync, and backend behavior.
-- Real Gmail OAuth/API integration, token expiry, and Google API verification flow.
+- Real Google consent popup automation and Google API verification flow.
 - Gmail attachment/PDF/OCR parsing.
 - Local LLM extraction engine behavior.
 - Accessibility audits beyond selectors, roles, and current interaction checks.

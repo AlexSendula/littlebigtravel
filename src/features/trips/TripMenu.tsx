@@ -39,6 +39,15 @@ export function tripDateLine(trip?: Trip) {
   return formatPlannerItemDate(sortedDates[0], sortedDates.at(-1));
 }
 
+function tripHasDateContext(trip?: Trip) {
+  if (!trip) return false;
+  if (trip.startDate || trip.endDate) return true;
+  return (
+    trip.planner.items.some((item) => Boolean(item.startDate || item.endDate)) ||
+    trip.planner.customBases.some((base) => Boolean(base.startDate || base.endDate))
+  );
+}
+
 function setTripCardSwipeActive(active: boolean) {
   if (typeof document === "undefined") return;
   document.body.classList.toggle(TRIP_CARD_SWIPE_CLASS, active);
@@ -391,9 +400,14 @@ function TripDrawer({
   trips,
   archivedTrips,
   activeTripId,
+  activeTrip,
   gmailImport,
   newTripName,
+  newTripStartDate,
+  newTripEndDate,
   onNewTripNameChange,
+  onNewTripStartDateChange,
+  onNewTripEndDateChange,
   onCreateTrip,
   onSelectTrip,
   onDeleteTrip,
@@ -405,9 +419,14 @@ function TripDrawer({
   trips: Trip[];
   archivedTrips: Trip[];
   activeTripId?: string;
+  activeTrip?: Trip;
   gmailImport: GmailAutoImportStatus;
   newTripName: string;
+  newTripStartDate: string;
+  newTripEndDate: string;
   onNewTripNameChange: (value: string) => void;
+  onNewTripStartDateChange: (value: string) => void;
+  onNewTripEndDateChange: (value: string) => void;
   onCreateTrip: () => void;
   onSelectTrip: (tripId: string) => void;
   onDeleteTrip: (tripId: string) => void;
@@ -425,6 +444,8 @@ function TripDrawer({
   const drawerRef = useRef<HTMLElement | null>(null);
   const hideCreateTimerRef = useRef<number | null>(null);
   const newTripNameRef = useRef(newTripName);
+  const newTripStartDateRef = useRef(newTripStartDate);
+  const newTripEndDateRef = useRef(newTripEndDate);
   const createFocusedRef = useRef(false);
   const [showArchived, setShowArchived] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -438,10 +459,13 @@ function TripDrawer({
   const hasDisplayedTrips = displayedTrips.length > 0;
   const showCreateForm = !showArchived && (!hasTrips || createOpen || createClosing);
   const canCreateTrip = newTripName.trim().length > 0;
-  const activeTrip = trips.find((trip) => trip.id === activeTripId);
   const closeThreshold = 150;
   const closeAnimationMs = 320;
   const collapsedHeight = 78;
+  const hasCreateDraft = useCallback(
+    () => Boolean(newTripNameRef.current.trim() || newTripStartDateRef.current || newTripEndDateRef.current),
+    [],
+  );
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current === null) return;
@@ -470,17 +494,25 @@ function TripDrawer({
     newTripNameRef.current = newTripName;
   }, [newTripName]);
 
+  useEffect(() => {
+    newTripStartDateRef.current = newTripStartDate;
+  }, [newTripStartDate]);
+
+  useEffect(() => {
+    newTripEndDateRef.current = newTripEndDate;
+  }, [newTripEndDate]);
+
   const scheduleHideCreate = useCallback(() => {
     if (!hasTrips) return;
     clearHideCreateTimer();
     hideCreateTimerRef.current = window.setTimeout(() => {
       hideCreateTimerRef.current = null;
-      if (newTripNameRef.current.trim()) return;
+      if (hasCreateDraft()) return;
       if (createFocusedRef.current) return;
       setCreateClosing(true);
       setCreateOpen(false);
     }, 5000);
-  }, [clearHideCreateTimer, hasTrips]);
+  }, [clearHideCreateTimer, hasCreateDraft, hasTrips]);
 
   useEffect(() => {
     if (!hasArchivedTrips && showArchived) setShowArchived(false);
@@ -717,7 +749,7 @@ function TripDrawer({
               ) : null}
             </div>
           </header>
-          <GmailImportStatusRow gmailImport={gmailImport} />
+          <GmailImportStatusRow gmailImport={gmailImport} showDateHint={Boolean(activeTrip && !tripHasDateContext(activeTrip))} />
           {showCreateForm ? (
             <div
               className={`trip-drawer-create-shell ${!hasTrips ? "empty" : ""} ${createOpen && hasTrips ? "inline" : ""} ${
@@ -740,7 +772,8 @@ function TripDrawer({
                   value={newTripName}
                   onChange={(event) => {
                     onNewTripNameChange(event.target.value);
-                    if (event.target.value.trim()) {
+                    newTripNameRef.current = event.target.value;
+                    if (hasCreateDraft()) {
                       clearHideCreateTimer();
                     } else if (createOpen) {
                       scheduleHideCreate();
@@ -752,7 +785,7 @@ function TripDrawer({
                   }}
                   onBlur={() => {
                     createFocusedRef.current = false;
-                    if (!newTripNameRef.current.trim() && createOpen) scheduleHideCreate();
+                    if (!hasCreateDraft() && createOpen) scheduleHideCreate();
                   }}
                   placeholder="Trip title"
                   name="lbt-draft-trip"
@@ -766,6 +799,49 @@ function TripDrawer({
                   data-form-type="other"
                   aria-label="New trip title"
                 />
+                <div className="trip-drawer-create-dates">
+                  <input
+                    type="date"
+                    value={newTripStartDate}
+                    onChange={(event) => {
+                      newTripStartDateRef.current = event.target.value;
+                      onNewTripStartDateChange(event.target.value);
+                      if (hasCreateDraft()) clearHideCreateTimer();
+                    }}
+                    onFocus={() => {
+                      createFocusedRef.current = true;
+                      clearHideCreateTimer();
+                    }}
+                    onBlur={() => {
+                      createFocusedRef.current = false;
+                      if (!hasCreateDraft() && createOpen) scheduleHideCreate();
+                    }}
+                    name="lbt-draft-trip-start-date"
+                    autoComplete="off"
+                    aria-label="Trip start date"
+                  />
+                  <span aria-hidden="true">to</span>
+                  <input
+                    type="date"
+                    value={newTripEndDate}
+                    onChange={(event) => {
+                      newTripEndDateRef.current = event.target.value;
+                      onNewTripEndDateChange(event.target.value);
+                      if (hasCreateDraft()) clearHideCreateTimer();
+                    }}
+                    onFocus={() => {
+                      createFocusedRef.current = true;
+                      clearHideCreateTimer();
+                    }}
+                    onBlur={() => {
+                      createFocusedRef.current = false;
+                      if (!hasCreateDraft() && createOpen) scheduleHideCreate();
+                    }}
+                    name="lbt-draft-trip-end-date"
+                    autoComplete="off"
+                    aria-label="Trip end date"
+                  />
+                </div>
                 <button type="submit" aria-label="Create trip" disabled={!canCreateTrip}>
                   <Plus size={17} />
                   <span>Create trip</span>
@@ -809,7 +885,11 @@ function formatImportLastChecked(lastCheckedAt?: string) {
   return `Last checked ${parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-function GmailImportStatusRow({ gmailImport }: { gmailImport: GmailAutoImportStatus }) {
+function compactEmailSubject(subject: string) {
+  return subject.length > 58 ? `${subject.slice(0, 55)}...` : subject;
+}
+
+function GmailImportStatusRow({ gmailImport, showDateHint }: { gmailImport: GmailAutoImportStatus; showDateHint: boolean }) {
   const statusText =
     gmailImport.status === "connected"
       ? gmailImport.isRunning
@@ -817,26 +897,130 @@ function GmailImportStatusRow({ gmailImport }: { gmailImport: GmailAutoImportSta
         : formatImportLastChecked(gmailImport.lastCheckedAt)
       : gmailImport.status === "setup-needed"
         ? "OAuth setup needed"
+        : gmailImport.status === "reconnect-needed"
+          ? "Reconnect Gmail"
         : gmailImport.status === "error"
           ? gmailImport.error ?? "Import failed"
           : "Disconnected";
-  const actionLabel = gmailImport.connected ? "Disconnect Gmail" : "Connect Gmail";
+  const actionLabel = gmailImport.connected ? "Disconnect Gmail" : gmailImport.status === "reconnect-needed" ? "Reconnect Gmail" : "Connect Gmail";
+  const debug = gmailImport.lastRun?.debug;
+  const importableCandidateCount = debug?.candidates.filter((candidate) => candidate.selected !== false).length ?? 0;
+  const runSummary =
+    debug && !gmailImport.isRunning
+      ? `${debug.forceFullSearch ? "Full scan" : "Incremental"} · ${debug.selectedSourceCount} selected · ${importableCandidateCount} candidates · ${
+          gmailImport.lastRun?.appliedCount ?? 0
+        } imported`
+      : undefined;
 
   return (
     <section className={`gmail-import-status ${gmailImport.status}`} aria-label="Gmail auto-import">
-      <div>
-        <Mail size={16} aria-hidden="true" />
-        <span>Gmail auto-import</span>
-        <small>{statusText}</small>
+      <div className="gmail-import-status-row">
+        <div>
+          <Mail size={16} aria-hidden="true" />
+          <span>Gmail auto-import</span>
+          <small>{statusText}</small>
+          {runSummary ? <em>{runSummary}</em> : null}
+          {showDateHint ? <em>Add trip dates and destinations to improve Gmail matching.</em> : null}
+        </div>
+        <button
+          type="button"
+          onClick={gmailImport.connected ? gmailImport.disconnect : gmailImport.connect}
+          aria-label={actionLabel}
+          title={actionLabel}
+          disabled={gmailImport.isConnecting}
+        >
+          {gmailImport.connected ? <Unplug size={16} /> : <RefreshCcw size={16} />}
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={gmailImport.connected ? gmailImport.disconnect : gmailImport.connect}
-        aria-label={actionLabel}
-        title={actionLabel}
-      >
-        {gmailImport.connected ? <Unplug size={16} /> : <RefreshCcw size={16} />}
-      </button>
+      {debug ? (
+        <details
+          className="gmail-import-debug"
+          data-no-swipe="true"
+          onPointerDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
+          onTouchMove={(event) => event.stopPropagation()}
+        >
+          <summary>Import debug</summary>
+          <div className="gmail-import-debug-grid">
+            <span>Queries</span>
+            <strong>{debug.queries.length}</strong>
+            <span>Raw ids</span>
+            <strong>{debug.rawMessageCount ?? 0}</strong>
+            <span>Loaded emails</span>
+            <strong>{debug.fetchedSourceCount}</strong>
+            <span>Skipped ids</span>
+            <strong>{debug.skippedMessageCount ?? 0}</strong>
+            <span>Selected</span>
+            <strong>{debug.selectedSourceCount}</strong>
+            <span>Candidates</span>
+            <strong>{importableCandidateCount}</strong>
+            <span>Applied</span>
+            <strong>{gmailImport.lastRun?.appliedCount ?? 0}</strong>
+          </div>
+          <div className="gmail-import-debug-section">
+            <p>Queries used</p>
+            <ul>
+              {debug.queries.slice(0, 6).map((query) => (
+                <li key={query}>{query}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="gmail-import-debug-section">
+            <p>Emails scanned</p>
+            {debug.sources.length > 0 ? (
+              <ul>
+                {debug.sources.slice(0, 8).map((source) => (
+                  <li key={source.id}>
+                    <strong>{compactEmailSubject(source.subject)}</strong>
+                    <span>
+                      {source.selected ? "selected" : "filtered"} · score {source.score?.toFixed(2) ?? "--"} · {source.reason}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <small>No emails matched the Gmail query.</small>
+            )}
+          </div>
+          <div className="gmail-import-debug-section">
+            <p>Candidates and decisions</p>
+            {debug.candidates.length > 0 || debug.decisions.length > 0 ? (
+              <ul>
+                {debug.candidates.slice(0, 6).map((candidate) => (
+                  <li key={candidate.id}>
+                    <strong>
+                      {candidate.selected === false ? "filtered" : candidate.kind} · {(candidate.confidence * 100).toFixed(0)}%
+                    </strong>
+                    <span>
+                      {candidate.title}
+                      {candidate.startDate ? ` · ${candidate.startDate}${candidate.endDate && candidate.endDate !== candidate.startDate ? `-${candidate.endDate}` : ""}` : ""}
+                      {candidate.reason ? ` · ${candidate.reason}` : ""}
+                    </span>
+                  </li>
+                ))}
+                {debug.decisions.slice(0, 6).map((decision) => (
+                  <li key={`${decision.sourceId}:${decision.candidateId ?? "source"}:${decision.status}`}>
+                    <strong>{decision.status}</strong>
+                    <span>{decision.reason ?? decision.sourceId}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <small>No importable candidates were extracted.</small>
+            )}
+          </div>
+          {gmailImport.connected ? (
+            <button
+              type="button"
+              className="gmail-import-debug-check"
+              onClick={() => gmailImport.trigger({ forceFullSearch: true })}
+              disabled={gmailImport.isRunning}
+            >
+              Check now
+            </button>
+          ) : null}
+        </details>
+      ) : null}
     </section>
   );
 }
@@ -849,7 +1033,11 @@ export function TripMenu({
   activeTripId,
   gmailImport,
   newTripName,
+  newTripStartDate,
+  newTripEndDate,
   onNewTripNameChange,
+  onNewTripStartDateChange,
+  onNewTripEndDateChange,
   onCreateTrip,
   onSelectTrip,
   onDeleteTrip,
@@ -864,7 +1052,11 @@ export function TripMenu({
   activeTripId?: string;
   gmailImport: GmailAutoImportStatus;
   newTripName: string;
+  newTripStartDate: string;
+  newTripEndDate: string;
   onNewTripNameChange: (value: string) => void;
+  onNewTripStartDateChange: (value: string) => void;
+  onNewTripEndDateChange: (value: string) => void;
   onCreateTrip: () => void;
   onSelectTrip: (tripId: string) => void;
   onDeleteTrip: (tripId: string) => void;
@@ -994,9 +1186,14 @@ export function TripMenu({
         trips={trips}
         archivedTrips={archivedTrips}
         activeTripId={activeTripId}
+        activeTrip={activeTrip}
         gmailImport={gmailImport}
         newTripName={newTripName}
+        newTripStartDate={newTripStartDate}
+        newTripEndDate={newTripEndDate}
         onNewTripNameChange={onNewTripNameChange}
+        onNewTripStartDateChange={onNewTripStartDateChange}
+        onNewTripEndDateChange={onNewTripEndDateChange}
         onCreateTrip={onCreateTrip}
         onSelectTrip={handleSelectTrip}
         onDeleteTrip={onDeleteTrip}

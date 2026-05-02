@@ -8,6 +8,13 @@ Feature: Trip management
     Then the active trip is "Patagonia Test"
     And the trip menu lists "Patagonia Test"
 
+  Scenario: Create a trip with a date range
+    Given I open a clean app
+    When I open the trip menu
+    And I create a trip named "May Trip" from "2026-05-01" to "2026-05-10"
+    Then the active trip is "May Trip"
+    And the active trip dates are "1 May - 10 May"
+
   Scenario: Create multiple trips and switch the active trip
     Given I have two active trips named "Patagonia Test" and "Thailand Test"
     When I open the trip menu

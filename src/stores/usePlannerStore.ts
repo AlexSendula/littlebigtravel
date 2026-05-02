@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { normalizeDateRange } from "../domain/trip/date";
 import type { Trip } from "../domain/trip/types";
 import { measurePerformance } from "../performance/perfMetrics";
 import type { PlannerCustomBase, PlannerItem } from "../planner";
@@ -14,7 +15,7 @@ export type PlannerStore = {
   setPlannerItems: Dispatch<SetStateAction<PlannerItem[]>>;
   customBases: PlannerCustomBase[];
   setCustomBases: Dispatch<SetStateAction<PlannerCustomBase[]>>;
-  createTrip: (name?: string) => string;
+  createTrip: (name?: string, options?: { startDate?: string; endDate?: string }) => string;
   renameTrip: (tripId: string, name: string) => void;
   selectTrip: (tripId: string) => void;
   deleteTrip: (tripId: string) => void;
@@ -230,13 +231,16 @@ export function usePlannerStore(repository: PlannerRepository = indexedDbPlanner
   }, []);
 
   const createTrip = useCallback(
-    (name?: string) => {
+    (name?: string, options?: { startDate?: string; endDate?: string }) => {
       markImmediateSave();
       const now = new Date().toISOString();
       const id = createTripId();
+      const normalizedDates = options?.startDate ? normalizeDateRange(options.startDate, options.endDate) : undefined;
       const trip: Trip = {
         id,
         name: normalizeTripName(name, trips.length),
+        startDate: normalizedDates?.startDate,
+        endDate: normalizedDates?.endDate,
         createdAt: now,
         updatedAt: now,
         planner: {

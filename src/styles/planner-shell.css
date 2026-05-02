@@ -115,8 +115,24 @@
   margin-top: 16px;
 }
 
+.planner-trip-gate-date-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.planner-trip-gate-date-row span {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 780;
+}
+
 .planner-trip-gate-card button[type="submit"] {
   display: inline-flex;
+  grid-column: 2;
+  grid-row: 1;
   min-height: 40px;
   align-items: center;
   gap: 6px;

@@ -37,6 +37,13 @@ When("I create a trip named {string}", async function (this: TravelWorld, name: 
   await createTrip(this, name);
 });
 
+When(
+  "I create a trip named {string} from {string} to {string}",
+  async function (this: TravelWorld, name: string, startDate: string, endDate: string) {
+    await createTrip(this, name, startDate, endDate);
+  },
+);
+
 When("I show archived trips", async function (this: TravelWorld) {
   await this.page.getByLabel("Show archived trips").click();
   await expect(this.page.getByRole("heading", { name: "Archived trips" })).toBeVisible();
@@ -58,6 +65,10 @@ When("I archive the trip named {string}", async function (this: TravelWorld, nam
 
 Then("the active trip is {string}", async function (this: TravelWorld, name: string) {
   await expect(this.page.locator(".topbar h2")).toHaveText(name);
+});
+
+Then("the active trip dates are {string}", async function (this: TravelWorld, dateLine: string) {
+  await expect(this.page.locator(".topbar p")).toHaveText(dateLine);
 });
 
 Then("the trip menu lists {string}", async function (this: TravelWorld, name: string) {
