@@ -21,6 +21,13 @@ export type ImportSource = {
   bodyText?: string;
   receivedAt?: string;
   attachmentNames?: string[];
+  attachmentTexts?: Array<{
+    name: string;
+    mimeType?: string;
+    text?: string;
+    status: "extracted" | "skipped" | "failed";
+    error?: string;
+  }>;
 };
 
 export type ImportCandidateKind = "startingTravel" | "transport" | "stay" | "activity";
@@ -43,6 +50,7 @@ export type ImportCandidate = {
   baseLabel?: string;
   transportMode?: PlannerTransportMode;
   stayType?: PlannerStayType;
+  bookingReference?: string;
   note?: string;
 };
 
@@ -81,6 +89,9 @@ export type ImportDebugCandidate = {
 };
 
 export type ImportRunDebug = {
+  extractionEngineId?: string;
+  modelStatus?: "not-configured" | "preparing" | "ready" | "failed";
+  modelError?: string;
   queries: string[];
   querySignature: string;
   forceFullSearch?: boolean;
@@ -89,6 +100,7 @@ export type ImportRunDebug = {
   rawMessageCount?: number;
   metadataSourceCount?: number;
   fullFetchCount?: number;
+  extractedAttachmentCount?: number;
   skippedMessageCount?: number;
   fetchedSourceCount: number;
   selectedSourceCount: number;
@@ -127,5 +139,5 @@ export type ImportApplyResult = {
 
 export type ExtractionEngine = {
   id: string;
-  extractCandidates: (source: ImportSource, context: ImportProviderTripContext) => ImportCandidate[];
+  extractCandidates: (source: ImportSource, context: ImportProviderTripContext) => ImportCandidate[] | Promise<ImportCandidate[]>;
 };

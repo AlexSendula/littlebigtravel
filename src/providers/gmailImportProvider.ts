@@ -1,5 +1,5 @@
 import { applyImportCandidates } from "../domain/imports/applyImport";
-import { deterministicExtractionEngine, scoreImportSource } from "../domain/imports/extraction";
+import { scoreImportSource } from "../domain/imports/extraction";
 import {
   buildGmailCandidateQueries,
   GMAIL_BOOKING_KEYWORDS,
@@ -16,6 +16,8 @@ import type {
 } from "../domain/imports/types";
 import type { PlannerSnapshot } from "../domain/trip/types";
 import { fetchGmailImportSources, isGmailAuthError } from "./gmailApiClient";
+import { getImportExtractionEngine } from "./importExtractionProvider";
+import { getImportModelSetupStatus, prepareImportModel, type ImportModelStatus } from "./importModelProvider";
 import {
   clearGmailAccessToken,
   getGoogleClientId,
@@ -40,6 +42,9 @@ export type GmailTripImportState = {
 export type GmailImportState = {
   connected: boolean;
   status: GmailConnectionStatus;
+  modelStatus?: ImportModelStatus;
+  modelError?: string;
+  modelPreparedAt?: string;
   lastCheckedAt?: string;
   historyId?: string;
   lastQuerySignature?: string;
@@ -71,6 +76,7 @@ type GmailTestMessage = {
   bodyText?: string;
   receivedAt?: string;
   attachmentNames?: string[];
+  attachmentTexts?: ImportSource["attachmentTexts"];
 };
 
 declare global {
@@ -83,6 +89,7 @@ function emptyState(): GmailImportState {
   return {
     connected: false,
     status: "disconnected",
+    modelStatus: "not-configured",
     importedSourceIds: [],
     decisions: [],
     tripStates: {},
@@ -140,6 +147,9 @@ function readState(): GmailImportState {
     const next = {
       connected: Boolean(parsed.connected),
       status: parsed.status ?? (parsed.connected ? "connected" : "disconnected"),
+      modelStatus: parsed.modelStatus,
+      modelError: parsed.modelError,
+      modelPreparedAt: parsed.modelPreparedAt,
       lastCheckedAt: parsed.lastCheckedAt,
       historyId: parsed.historyId,
       lastQuerySignature: typeof parsed.lastQuerySignature === "string" ? parsed.lastQuerySignature : undefined,
@@ -160,6 +170,16 @@ function readState(): GmailImportState {
   } catch {
     return emptyState();
   }
+}
+
+async function prepareModelForConnectedState(state: GmailImportState): Promise<GmailImportState> {
+  const setup = await prepareImportModel();
+  return {
+    ...state,
+    modelStatus: setup.status,
+    modelError: setup.error,
+    modelPreparedAt: setup.preparedAt,
+  };
 }
 
 function writeState(state: GmailImportState) {
@@ -184,6 +204,7 @@ function sourceFromTestMessage(message: GmailTestMessage): ImportSource {
     bodyText: message.bodyText,
     receivedAt: message.receivedAt,
     attachmentNames: message.attachmentNames,
+    attachmentTexts: message.attachmentTexts,
   };
 }
 
@@ -194,7 +215,8 @@ function readTestSources() {
 
 function sourceMatchesQueries(source: ImportSource, queries: string[]) {
   if (queries.length === 0) return true;
-  const haystack = [source.subject, source.snippet, source.bodyText].filter(Boolean).join(" ").toLowerCase();
+  const attachmentText = source.attachmentTexts?.map((attachment) => attachment.text).filter(Boolean).join(" ");
+  const haystack = [source.subject, source.snippet, source.bodyText, attachmentText].filter(Boolean).join(" ").toLowerCase();
   const keywordTerms = new Set(GMAIL_BOOKING_KEYWORDS.map((keyword) => keyword.toLowerCase()));
   return queries.some((query) => {
     const quotedTerms = [...query.matchAll(/"([^"]+)"/g)].map((match) => match[1].toLowerCase());
@@ -313,12 +335,12 @@ export const gmailImportProvider = {
   async connect() {
     const current = readState();
     if (hasTestMessages()) {
-      const next: GmailImportState = {
+      const next: GmailImportState = await prepareModelForConnectedState({
         ...current,
         connected: true,
         status: "connected",
         error: undefined,
-      };
+      });
       writeState(next);
       return next;
     }
@@ -336,12 +358,12 @@ export const gmailImportProvider = {
 
     try {
       await requestGmailAccessToken({ prompt: current.status === "reconnect-needed" ? "" : "consent" });
-      const next: GmailImportState = {
+      const next: GmailImportState = await prepareModelForConnectedState({
         ...current,
         connected: true,
         status: "connected",
         error: undefined,
-      };
+      });
       writeState(next);
       return next;
     } catch (error) {
@@ -524,7 +546,11 @@ export const gmailImportProvider = {
     });
     const sources = sourceEvaluations.filter((evaluation) => evaluation.selected).map((evaluation) => evaluation.source);
 
-    const extractedCandidates = sources.flatMap((source) => deterministicExtractionEngine.extractCandidates(source, context));
+    const extractionEngine = getImportExtractionEngine();
+    const modelSetup = getImportModelSetupStatus();
+    const extractedCandidates = (
+      await Promise.all(sources.map((source) => Promise.resolve(extractionEngine.extractCandidates(source, context))))
+    ).flat();
     const candidateEvaluations = extractedCandidates.map((candidate) => {
       const tripMatch = importCandidateMatchesActiveTrip(candidate, context);
       return {
@@ -545,6 +571,9 @@ export const gmailImportProvider = {
 
     const finishedAt = new Date().toISOString();
     const debug: ImportRunDebug = {
+      extractionEngineId: extractionEngine.id,
+      modelStatus: modelSetup.status,
+      modelError: modelSetup.error,
       queries,
       querySignature,
       forceFullSearch: options.forceFullSearch,
@@ -553,6 +582,10 @@ export const gmailImportProvider = {
       rawMessageCount: fetchDebug?.rawMessageCount,
       metadataSourceCount: fetchDebug?.metadataSourceCount,
       fullFetchCount: fetchDebug?.fullFetchCount,
+      extractedAttachmentCount: availableSources.reduce(
+        (total, source) => total + (source.attachmentTexts?.filter((attachment) => attachment.status === "extracted").length ?? 0),
+        0,
+      ),
       skippedMessageCount: fetchDebug?.skippedMessageCount,
       fetchedSourceCount: availableSources.length,
       selectedSourceCount: sources.length,
@@ -606,6 +639,9 @@ export const gmailImportProvider = {
     const nextState: GmailImportState = {
       ...current,
       status: "connected",
+      modelStatus: modelSetup.status,
+      modelError: modelSetup.error,
+      modelPreparedAt: modelSetup.preparedAt ?? current.modelPreparedAt,
       lastCheckedAt: nextTripState.lastCheckedAt,
       lastQuerySignature: nextTripState.lastQuerySignature,
       historyId: nextTripState.historyId,

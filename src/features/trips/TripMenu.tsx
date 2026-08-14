@@ -948,6 +948,12 @@ function GmailImportStatusRow({ gmailImport, showDateHint }: { gmailImport: Gmai
             <strong>{debug.rawMessageCount ?? 0}</strong>
             <span>Loaded emails</span>
             <strong>{debug.fetchedSourceCount}</strong>
+            <span>Attachments</span>
+            <strong>{debug.extractedAttachmentCount ?? 0}</strong>
+            <span>Extractor</span>
+            <strong>{debug.extractionEngineId ?? "default"}</strong>
+            <span>Model</span>
+            <strong>{debug.modelStatus ?? gmailImport.modelStatus ?? "unknown"}</strong>
             <span>Skipped ids</span>
             <strong>{debug.skippedMessageCount ?? 0}</strong>
             <span>Selected</span>

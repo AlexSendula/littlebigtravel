@@ -33,7 +33,11 @@ function baseIdFor(label: string) {
   return `custom:import:${slug || "destination"}`;
 }
 
-function importedItemBase(candidate: ImportCandidate, order: number, importedAt: string): Pick<PlannerItem, "note" | "source" | "order" | "importProvider" | "importSourceId" | "importImportedAt" | "importConfidence"> {
+function importedItemBase(
+  candidate: ImportCandidate,
+  order: number,
+  importedAt: string,
+): Pick<PlannerItem, "note" | "source" | "order" | "importProvider" | "importSourceId" | "importImportedAt" | "importConfidence" | "bookingReference"> {
   return {
     note: candidate.note ?? "",
     source: "imported",
@@ -42,6 +46,7 @@ function importedItemBase(candidate: ImportCandidate, order: number, importedAt:
     importSourceId: candidate.sourceId,
     importImportedAt: importedAt,
     importConfidence: candidate.confidence,
+    bookingReference: candidate.bookingReference,
   };
 }
 
@@ -57,6 +62,13 @@ function baseFromLabel(label: string, date: string): PlannerCustomBase {
     countryCode: knownPlace?.countryCode,
     mapStopId: knownPlace?.mapStopId,
   };
+}
+
+function findBaseByLabel(customBases: PlannerCustomBase[], label: string) {
+  const normalized = normalizePlaceInput(label);
+  const slug = slugifyBaseCity(normalized);
+  const knownPlace = findKnownPlace(normalized);
+  return customBases.find((base) => slugifyBaseCity(base.baseName) === slug || (knownPlace?.mapStopId && base.mapStopId === knownPlace.mapStopId));
 }
 
 function sameManualRoute(item: PlannerItem, candidate: ImportCandidate) {
@@ -80,8 +92,30 @@ function sameManualStay(item: PlannerItem, candidate: ImportCandidate) {
   );
 }
 
-function importedSourceExists(items: PlannerItem[], candidate: ImportCandidate) {
-  return items.some((item) => item.importProvider === candidate.provider && item.importSourceId === candidate.sourceId);
+function sameImportedBookingItem(item: PlannerItem, nextItem: PlannerItem) {
+  if (!item.bookingReference || !nextItem.bookingReference) return false;
+  if (item.bookingReference !== nextItem.bookingReference) return false;
+  if (item.importProvider !== nextItem.importProvider) return false;
+  if (item.kind !== nextItem.kind) return false;
+  if (item.isStartingTravel !== nextItem.isStartingTravel) return false;
+
+  if (nextItem.kind === "stay") {
+    return normalizePlaceInput(item.placeLabel ?? item.title) === normalizePlaceInput(nextItem.placeLabel ?? nextItem.title);
+  }
+
+  if (nextItem.kind === "activity") {
+    return normalizePlaceInput(item.title) === normalizePlaceInput(nextItem.title) && item.startDate === nextItem.startDate;
+  }
+
+  return (
+    normalizePlaceInput(item.fromLabel ?? "") === normalizePlaceInput(nextItem.fromLabel ?? "") &&
+    normalizePlaceInput(item.toLabel ?? "") === normalizePlaceInput(nextItem.toLabel ?? "") &&
+    item.startDate === nextItem.startDate
+  );
+}
+
+function routeItemId(candidate: ImportCandidate) {
+  return `import:${candidate.id}`;
 }
 
 function createStartingTravel(candidate: ImportCandidate, importedAt: string): { item: PlannerItem; base?: PlannerCustomBase } | undefined {
@@ -124,6 +158,58 @@ function createStartingTravel(candidate: ImportCandidate, importedAt: string): {
   };
 }
 
+function createTransportRoute(
+  candidate: ImportCandidate,
+  customBases: PlannerCustomBase[],
+  importedAt: string,
+): { item: PlannerItem; bases: PlannerCustomBase[] } | undefined {
+  if (!candidate.fromLabel || !candidate.toLabel || !candidate.startDate) return undefined;
+  const normalizedRange = normalizeDateRange(candidate.startDate, candidate.endDate ?? candidate.startDate);
+  const arrivalDate = normalizedRange.endDate ?? normalizedRange.startDate;
+  const fromKnownPlace = findKnownPlace(candidate.fromLabel);
+  const toKnownPlace = findKnownPlace(candidate.toLabel);
+  const existingFromBase = findBaseByLabel(customBases, candidate.fromLabel);
+  const existingToBase = findBaseByLabel(customBases, candidate.toLabel);
+  const fromBase = existingFromBase ?? baseFromLabel(candidate.fromLabel, normalizedRange.startDate);
+  const toBase = existingToBase ?? baseFromLabel(candidate.toLabel, arrivalDate);
+  const bases = [!existingFromBase ? fromBase : undefined, !existingToBase ? toBase : undefined].filter(
+    (base): base is PlannerCustomBase => Boolean(base),
+  );
+  const fromDisplay = formatRoutePlaceForDisplay(candidate.fromLabel, fromKnownPlace?.countryCode ?? fromBase.countryCode, fromKnownPlace?.country ?? fromBase.country);
+  const toDisplay = formatRoutePlaceForDisplay(candidate.toLabel, toKnownPlace?.countryCode ?? toBase.countryCode, toKnownPlace?.country ?? toBase.country);
+
+  return {
+    bases,
+    item: {
+      id: routeItemId(candidate),
+      kind: candidate.transportMode === "flight" ? "flight" : "transport",
+      title: `${fromDisplay} to ${toDisplay}`,
+      startDate: normalizedRange.startDate,
+      endDate: normalizedRange.endDate,
+      startTime: candidate.startTime,
+      endTime: candidate.endTime,
+      baseId: fromBase.id,
+      baseName: fromBase.baseName,
+      fromBaseId: fromBase.id,
+      toBaseId: toBase.id,
+      fromLabel: normalizePlaceInput(candidate.fromLabel),
+      toLabel: normalizePlaceInput(candidate.toLabel),
+      fromCoordinates: fromKnownPlace?.coordinates ?? fromBase.coordinates,
+      toCoordinates: toKnownPlace?.coordinates ?? toBase.coordinates,
+      fromCountry: fromKnownPlace?.country ?? fromBase.country,
+      toCountry: toKnownPlace?.country ?? toBase.country,
+      fromCountryCode: fromKnownPlace?.countryCode ?? fromBase.countryCode,
+      toCountryCode: toKnownPlace?.countryCode ?? toBase.countryCode,
+      fromMapStopId: fromKnownPlace?.mapStopId ?? fromBase.mapStopId,
+      toMapStopId: toKnownPlace?.mapStopId ?? toBase.mapStopId,
+      destinationId: toKnownPlace?.mapStopId ?? toBase.mapStopId,
+      transportMode: candidate.transportMode ?? "other",
+      autoLinkedItemsEnabled: true,
+      ...importedItemBase(candidate, 50, importedAt),
+    },
+  };
+}
+
 function findBaseForCandidate(customBases: PlannerCustomBase[], candidate: ImportCandidate) {
   const explicitLabel = candidate.baseLabel ?? candidate.toLabel;
   if (explicitLabel) {
@@ -140,53 +226,84 @@ function findBaseForCandidate(customBases: PlannerCustomBase[], candidate: Impor
   return customBases[0];
 }
 
-function createStay(candidate: ImportCandidate, customBases: PlannerCustomBase[], importedAt: string): PlannerItem | undefined {
+function inferBaseLabelForCandidate(candidate: ImportCandidate) {
+  if (candidate.baseLabel) return candidate.baseLabel;
+  const address = candidate.placeAddress ?? candidate.placeLabel;
+  const parts = address
+    ?.split(",")
+    .map((part) => normalizePlaceInput(part))
+    .filter(Boolean);
+  if (!parts || parts.length < 2) return undefined;
+  return parts.slice(-2).join(", ");
+}
+
+function createStay(
+  candidate: ImportCandidate,
+  customBases: PlannerCustomBase[],
+  importedAt: string,
+): { item: PlannerItem; bases: PlannerCustomBase[] } | undefined {
   if (!candidate.placeLabel || !candidate.startDate) return undefined;
-  const base = findBaseForCandidate(customBases, candidate);
+  const existingBase = findBaseForCandidate(customBases, candidate);
+  const inferredBaseLabel = inferBaseLabelForCandidate(candidate);
+  const base = existingBase ?? (inferredBaseLabel ? baseFromLabel(inferredBaseLabel, candidate.startDate) : undefined);
   if (!base) return undefined;
   const normalizedRange = normalizeDateRange(candidate.startDate, candidate.endDate ?? candidate.startDate);
   return {
-    id: `import:${candidate.provider}:${candidate.sourceId}:stay`,
-    kind: "stay",
-    title: candidate.placeLabel,
-    startDate: normalizedRange.startDate,
-    endDate: normalizedRange.endDate,
-    startTime: candidate.startTime,
-    endTime: candidate.endTime,
-    baseId: base.id,
-    baseName: base.baseName,
-    stayType: candidate.stayType ?? "other",
-    placeLabel: candidate.placeLabel,
-    placeAddress: candidate.placeAddress ?? candidate.placeLabel,
-    placeCountry: base.country,
-    placeCountryCode: base.countryCode,
-    autoLinkedItemsEnabled: true,
-    ...importedItemBase(candidate, 100, importedAt),
+    bases: existingBase ? [] : [base],
+    item: {
+      id: `import:${candidate.provider}:${candidate.sourceId}:stay`,
+      kind: "stay",
+      title: candidate.placeLabel,
+      startDate: normalizedRange.startDate,
+      endDate: normalizedRange.endDate,
+      startTime: candidate.startTime,
+      endTime: candidate.endTime,
+      baseId: base.id,
+      baseName: base.baseName,
+      stayType: candidate.stayType ?? "other",
+      placeLabel: candidate.placeLabel,
+      placeAddress: candidate.placeAddress ?? candidate.placeLabel,
+      placeCountry: base.country,
+      placeCountryCode: base.countryCode,
+      autoLinkedItemsEnabled: true,
+      ...importedItemBase(candidate, 100, importedAt),
+    },
   };
 }
 
-function createActivity(candidate: ImportCandidate, customBases: PlannerCustomBase[], importedAt: string): PlannerItem | undefined {
+function createActivity(
+  candidate: ImportCandidate,
+  customBases: PlannerCustomBase[],
+  importedAt: string,
+): { item: PlannerItem; bases: PlannerCustomBase[] } | undefined {
   if (!candidate.title || !candidate.startDate) return undefined;
-  const base = findBaseForCandidate(customBases, candidate);
+  const existingBase = findBaseForCandidate(customBases, candidate);
+  const inferredBaseLabel = inferBaseLabelForCandidate(candidate);
+  const base = existingBase ?? (inferredBaseLabel ? baseFromLabel(inferredBaseLabel, candidate.startDate) : undefined);
   if (!base) return undefined;
   return {
-    id: `import:${candidate.provider}:${candidate.sourceId}:activity`,
-    kind: "activity",
-    title: candidate.title,
-    startDate: candidate.startDate,
-    startTime: candidate.startTime,
-    endTime: candidate.endTime,
-    baseId: base.id,
-    baseName: base.baseName,
-    placeLabel: candidate.placeLabel,
-    placeAddress: candidate.placeAddress,
-    ...importedItemBase(candidate, 200, importedAt),
+    bases: existingBase ? [] : [base],
+    item: {
+      id: `import:${candidate.provider}:${candidate.sourceId}:activity`,
+      kind: "activity",
+      title: candidate.title,
+      startDate: candidate.startDate,
+      startTime: candidate.startTime,
+      endTime: candidate.endTime,
+      baseId: base.id,
+      baseName: base.baseName,
+      placeLabel: candidate.placeLabel,
+      placeAddress: candidate.placeAddress,
+      ...importedItemBase(candidate, 200, importedAt),
+    },
   };
 }
 
 function upsertImportedItem(items: PlannerItem[], nextItem: PlannerItem) {
   const index = items.findIndex(
-    (item) => item.importProvider === nextItem.importProvider && item.importSourceId === nextItem.importSourceId && item.id === nextItem.id,
+    (item) =>
+      (item.importProvider === nextItem.importProvider && item.importSourceId === nextItem.importSourceId && item.id === nextItem.id) ||
+      sameImportedBookingItem(item, nextItem),
   );
   if (index === -1) return [...items, nextItem];
   return items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...nextItem, id: item.id } : item));
@@ -232,18 +349,20 @@ export function applyImportCandidates(
         decisions.push(decision(candidate, "needs-user-fix", "Possible duplicate of a manual route.", importedAt));
         continue;
       }
-      const created = createStartingTravel(candidate, importedAt);
+      const created =
+        candidate.kind === "startingTravel"
+          ? createStartingTravel(candidate, importedAt)
+          : createTransportRoute(candidate, customBases, importedAt);
       if (!created) {
         decisions.push(decision(candidate, "failed", "Missing required route fields.", importedAt));
         continue;
       }
-      if (!importedSourceExists(items, candidate) || items.some((item) => item.id === created.item.id)) {
-        items = upsertImportedItem(items, created.item);
-        if (created.base) customBases = upsertCustomBase(customBases, created.base);
-        decisions.push(decision(candidate, "applied", undefined, importedAt));
-      } else {
-        decisions.push(decision(candidate, "ignored", "Source was already imported.", importedAt));
+      items = upsertImportedItem(items, created.item);
+      const bases = "bases" in created ? created.bases : created.base ? [created.base] : [];
+      for (const base of bases) {
+        customBases = upsertCustomBase(customBases, base);
       }
+      decisions.push(decision(candidate, "applied", undefined, importedAt));
       continue;
     }
 
@@ -257,7 +376,10 @@ export function applyImportCandidates(
         decisions.push(decision(candidate, "failed", "Missing stay place/date or destination base.", importedAt));
         continue;
       }
-      items = upsertImportedItem(items, nextItem);
+      for (const base of nextItem.bases) {
+        customBases = upsertCustomBase(customBases, base);
+      }
+      items = upsertImportedItem(items, nextItem.item);
       decisions.push(decision(candidate, "applied", undefined, importedAt));
       continue;
     }
@@ -267,7 +389,10 @@ export function applyImportCandidates(
       decisions.push(decision(candidate, "failed", "Missing activity title/date or destination base.", importedAt));
       continue;
     }
-    items = upsertImportedItem(items, nextItem);
+    for (const base of nextItem.bases) {
+      customBases = upsertCustomBase(customBases, base);
+    }
+    items = upsertImportedItem(items, nextItem.item);
     decisions.push(decision(candidate, "applied", undefined, importedAt));
   }
 

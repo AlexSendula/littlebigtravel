@@ -1,10 +1,13 @@
 import { scoreImportSource } from "../domain/imports/extraction";
 import type { ImportSource } from "../domain/imports/types";
+import { extractPdfTextFromBytes } from "./pdfTextExtractor";
 
 const GMAIL_API_BASE_URL = "https://gmail.googleapis.com/gmail/v1/users/me";
 const MAX_MESSAGES_PER_QUERY = 20;
 const MAX_FULL_MESSAGES_PER_RUN = 12;
 const METADATA_SCORE_THRESHOLD = 0.2;
+const MAX_ATTACHMENT_TEXTS_PER_MESSAGE = 3;
+const MAX_ATTACHMENT_BYTES = 7_000_000;
 
 export class GmailApiError extends Error {
   status: number;
@@ -24,6 +27,7 @@ type GmailHeader = {
 type GmailMessagePartBody = {
   data?: string;
   attachmentId?: string;
+  size?: number;
 };
 
 type GmailMessagePart = {
@@ -55,6 +59,23 @@ type GmailHistoryResponse = {
   }>;
   historyId?: string;
 };
+
+type GmailAttachmentResponse = {
+  data?: string;
+  size?: number;
+};
+
+type GmailAttachmentRef = {
+  name: string;
+  mimeType?: string;
+  attachmentId: string;
+  size?: number;
+};
+
+export type GmailAttachmentTextExtractor = (
+  bytes: Uint8Array,
+  attachment: Pick<GmailAttachmentRef, "name" | "mimeType">,
+) => Promise<string>;
 
 export type GmailFetchResult = {
   sources: ImportSource[];
@@ -105,6 +126,10 @@ export function buildGmailGetUrl(messageId: string, format: "metadata" | "full")
     params.append("fields", "id,threadId,historyId,snippet,internalDate,payload");
   }
   return `${GMAIL_API_BASE_URL}/messages/${encodeURIComponent(messageId)}?${params.toString()}`;
+}
+
+export function buildGmailAttachmentUrl(messageId: string, attachmentId: string) {
+  return `${GMAIL_API_BASE_URL}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}?fields=data,size`;
 }
 
 function buildGmailHistoryUrl(historyId: string) {
@@ -162,12 +187,15 @@ function headerValue(message: GmailMessage, headerName: string) {
   return header?.value;
 }
 
-function decodeBase64Url(value: string) {
+function base64UrlToBytes(value: string) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
   const binary = globalThis.atob(padded);
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+function decodeBase64Url(value: string) {
+  return new TextDecoder().decode(base64UrlToBytes(value));
 }
 
 function stripHtml(value: string) {
@@ -187,21 +215,35 @@ function stripHtml(value: string) {
     .trim();
 }
 
-function collectPartText(part: GmailMessagePart | undefined, output: string[], attachmentNames: string[]) {
+function collectPartText(part: GmailMessagePart | undefined, output: string[], attachmentNames: string[], attachments: GmailAttachmentRef[]) {
   if (!part) return;
   if (part.filename) attachmentNames.push(part.filename);
+  if (part.filename && part.body?.attachmentId) {
+    attachments.push({
+      name: part.filename,
+      mimeType: part.mimeType,
+      attachmentId: part.body.attachmentId,
+      size: part.body.size,
+    });
+  }
   if (part.body?.data && (part.mimeType === "text/plain" || part.mimeType === "text/html")) {
     const decoded = decodeBase64Url(part.body.data);
     output.push(part.mimeType === "text/html" ? stripHtml(decoded) : decoded);
   }
-  for (const child of part.parts ?? []) collectPartText(child, output, attachmentNames);
+  for (const child of part.parts ?? []) collectPartText(child, output, attachmentNames, attachments);
 }
 
-export function gmailMessageToImportSource(message: GmailMessage): ImportSource | undefined {
-  if (!message.id) return undefined;
+function collectMessageAttachmentRefs(message: GmailMessage) {
   const text: string[] = [];
   const attachmentNames: string[] = [];
-  collectPartText(message.payload, text, attachmentNames);
+  const attachments: GmailAttachmentRef[] = [];
+  collectPartText(message.payload, text, attachmentNames, attachments);
+  return { text, attachmentNames, attachments };
+}
+
+export function gmailMessageToImportSource(message: GmailMessage, attachmentTexts?: ImportSource["attachmentTexts"]): ImportSource | undefined {
+  if (!message.id) return undefined;
+  const { text, attachmentNames } = collectMessageAttachmentRefs(message);
   const dateHeader = headerValue(message, "Date");
   const parsedDateHeader = dateHeader ? new Date(dateHeader) : undefined;
   const receivedAt =
@@ -223,18 +265,86 @@ export function gmailMessageToImportSource(message: GmailMessage): ImportSource 
     bodyText: text.join("\n\n").trim() || undefined,
     receivedAt,
     attachmentNames,
+    attachmentTexts,
   };
 }
 
-async function fetchMessageSource(accessToken: string, messageId: string, format: "metadata" | "full") {
-  const message = await gmailFetchJson<GmailMessage>(accessToken, buildGmailGetUrl(messageId, format));
-  return gmailMessageToImportSource(message);
+async function fetchGmailAttachmentBytes(accessToken: string, messageId: string, attachmentId: string) {
+  const response = await gmailFetchJson<GmailAttachmentResponse>(accessToken, buildGmailAttachmentUrl(messageId, attachmentId));
+  return response.data ? base64UrlToBytes(response.data) : undefined;
 }
 
-async function fetchMessageSourceOrSkip(accessToken: string, messageId: string, format: "metadata" | "full") {
+function isExtractableAttachment(attachment: GmailAttachmentRef) {
+  if (attachment.size && attachment.size > MAX_ATTACHMENT_BYTES) return false;
+  return attachment.mimeType === "application/pdf" || /\.pdf$/i.test(attachment.name);
+}
+
+async function extractAttachmentTexts({
+  accessToken,
+  message,
+  extractor,
+}: {
+  accessToken: string;
+  message: GmailMessage;
+  extractor: GmailAttachmentTextExtractor;
+}): Promise<ImportSource["attachmentTexts"]> {
+  if (!message.id) return undefined;
+  const { attachments } = collectMessageAttachmentRefs(message);
+  const results: NonNullable<ImportSource["attachmentTexts"]> = [];
+  const extractable = attachments.filter(isExtractableAttachment).slice(0, MAX_ATTACHMENT_TEXTS_PER_MESSAGE);
+
+  for (const attachment of extractable) {
+    try {
+      const bytes = await fetchGmailAttachmentBytes(accessToken, message.id, attachment.attachmentId);
+      if (!bytes || bytes.byteLength === 0) {
+        results.push({ name: attachment.name, mimeType: attachment.mimeType, status: "skipped", error: "Attachment was empty." });
+        continue;
+      }
+      if (bytes.byteLength > MAX_ATTACHMENT_BYTES) {
+        results.push({ name: attachment.name, mimeType: attachment.mimeType, status: "skipped", error: "Attachment was too large." });
+        continue;
+      }
+      const text = await extractor(bytes, { name: attachment.name, mimeType: attachment.mimeType });
+      results.push({
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        status: text.trim() ? "extracted" : "skipped",
+        text: text.trim() || undefined,
+        error: text.trim() ? undefined : "No PDF text was found.",
+      });
+    } catch (error) {
+      results.push({
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        status: "failed",
+        error: error instanceof Error ? error.message : "Attachment extraction failed.",
+      });
+    }
+  }
+
+  return results.length > 0 ? results : undefined;
+}
+
+async function fetchMessageSource(
+  accessToken: string,
+  messageId: string,
+  format: "metadata" | "full",
+  attachmentExtractor: GmailAttachmentTextExtractor,
+) {
+  const message = await gmailFetchJson<GmailMessage>(accessToken, buildGmailGetUrl(messageId, format));
+  const attachmentTexts = format === "full" ? await extractAttachmentTexts({ accessToken, message, extractor: attachmentExtractor }) : undefined;
+  return gmailMessageToImportSource(message, attachmentTexts);
+}
+
+async function fetchMessageSourceOrSkip(
+  accessToken: string,
+  messageId: string,
+  format: "metadata" | "full",
+  attachmentExtractor: GmailAttachmentTextExtractor,
+) {
   try {
     return {
-      source: await fetchMessageSource(accessToken, messageId, format),
+      source: await fetchMessageSource(accessToken, messageId, format, attachmentExtractor),
     };
   } catch (error) {
     if (error instanceof GmailApiError && error.status === 404) {
@@ -265,10 +375,12 @@ export async function fetchGmailImportSources({
   accessToken,
   queries,
   historyId,
+  pdfTextExtractor = extractPdfTextFromBytes,
 }: {
   accessToken: string;
   queries: string[];
   historyId?: string;
+  pdfTextExtractor?: GmailAttachmentTextExtractor;
 }): Promise<GmailFetchResult> {
   let ids: string[] = [];
   let nextHistoryId: string | undefined;
@@ -300,7 +412,7 @@ export async function fetchGmailImportSources({
     const sources: ImportSource[] = [];
     const skipped: GmailFetchResult["debug"]["skippedMessages"] = [];
     for (const id of messageIds) {
-      const result = await fetchMessageSourceOrSkip(accessToken, id, "metadata");
+      const result = await fetchMessageSourceOrSkip(accessToken, id, "metadata", pdfTextExtractor);
       if (result.source) sources.push(result.source);
       if (result.skipped) skipped.push(result.skipped);
     }
@@ -331,7 +443,7 @@ export async function fetchGmailImportSources({
 
   const fullSources: ImportSource[] = [];
   for (const id of fullFetchIds) {
-    const result = await fetchMessageSourceOrSkip(accessToken, id, "full");
+    const result = await fetchMessageSourceOrSkip(accessToken, id, "full", pdfTextExtractor);
     if (result.source) fullSources.push(result.source);
     if (result.skipped) skippedMessages.push(result.skipped);
   }

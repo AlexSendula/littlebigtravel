@@ -143,7 +143,7 @@ Current direction:
 - User explicitly connects Gmail.
 - Gmail content is fetched directly from Google to the user's device.
 - The app checks on open/resume and while visible; true background push sync is deferred.
-- Deterministic local extraction ships first; local LLM/PDF/OCR extraction remains a future engine behind an interface.
+- Import extraction is LLM-ready with a development runtime hook; deterministic extraction remains the fallback until a local model runtime is validated.
 
 Checklist:
 
@@ -159,8 +159,9 @@ Checklist:
 - `[x]` Define local token expiry and reconnect UX.
 - `[ ]` Add production-safe error handling for quota, offline, and provider failures.
 - `[ ]` Test installed PWA app-open sync on iPhone Safari and Android Chrome.
-- `[ ]` Decide whether email attachment/PDF/OCR parsing is needed for launch.
-- `[ ]` Validate local LLM feasibility separately before shipping model inference.
+- `[~]` Add local PDF text extraction for Gmail attachments. Selectable-text PDFs are supported; scanned/image-only PDFs still need an OCR decision.
+- `[~]` Add automatic import-model preparation hook when Gmail is connected. Current Gemma-class support calls a configured browser/HTTP runtime; the production runtime, model package, download UX, cache policy, memory usage, and startup time still need validation.
+- `[ ]` Choose and validate the production local LLM runtime before shipping model inference. Current Gemma-class extraction support is a development hook only and still needs memory, startup-time, model-cache, fallback, and device testing.
 - `[ ]` Confirm that email import behavior complies with Gmail API User Data Policy and Limited Use requirements.
 
 ## Product Readiness

@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { applyImportCandidates } from "../../src/domain/imports/applyImport";
 import { deterministicExtractionEngine, scoreImportSource } from "../../src/domain/imports/extraction";
 import { buildGmailCandidateQueries } from "../../src/domain/imports/gmailQueries";
+import { buildImportLlmPrompt, createLlmExtractionEngine, parseImportLlmCandidates } from "../../src/domain/imports/llmExtraction";
 import { createImportRunCoordinator } from "../../src/domain/imports/runCoordinator";
 import type { ImportCandidate, ImportSource } from "../../src/domain/imports/types";
 import {
+  buildGmailAttachmentUrl,
   buildGmailGetUrl,
   buildGmailListUrl,
   fetchGmailImportSources,
@@ -23,6 +25,7 @@ import {
   shouldUseGmailHistoryForSync,
   type GmailImportState,
 } from "../../src/providers/gmailImportProvider";
+import { getImportModelSetupStatus, prepareImportModel } from "../../src/providers/importModelProvider";
 import { customBase, plannerItem, tripFixture } from "../fixtures/plannerFixtures";
 
 function gmailSource(overrides: Partial<ImportSource> = {}): ImportSource {
@@ -71,6 +74,7 @@ function gmailBody(text: string) {
 describe("Gmail import foundation", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("builds Gmail queries from destinations and booking keywords without filtering by trip email date", () => {
@@ -207,6 +211,254 @@ describe("Gmail import foundation", () => {
     });
   });
 
+  it("extracts outbound and return flight legs from one confirmation", () => {
+    const candidates = deterministicExtractionEngine.extractCandidates(
+      gmailSource({
+        subject: "Booking confirmation",
+        snippet: "Your flights are confirmed.",
+        bodyText: [
+          "Booking confirmation",
+          "Amsterdam, Netherlands to Santiago, Chile",
+          "Departure: 29 Apr 2026, 13:05",
+          "Arrival: 30 Apr 2026, 10:15",
+          "Santiago, Chile to Amsterdam, Netherlands",
+          "Departure: 3 May 2026, 20:00",
+          "Arrival: 4 May 2026, 14:20",
+        ].join("\n"),
+      }),
+      {
+        trip: tripFixture({
+          startDate: "2026-04-29",
+          endDate: "2026-05-04",
+        }),
+        planner: { items: [], customBases: [] },
+      },
+    );
+
+    expect(candidates).toHaveLength(2);
+    expect(candidates[0]).toMatchObject({
+      kind: "startingTravel",
+      fromLabel: "Amsterdam, Netherlands",
+      toLabel: "Santiago, Chile",
+      startDate: "2026-04-29",
+      endDate: "2026-04-30",
+      startTime: "13:05",
+      endTime: "10:15",
+    });
+    expect(candidates[1]).toMatchObject({
+      kind: "transport",
+      fromLabel: "Santiago, Chile",
+      toLabel: "Amsterdam, Netherlands",
+      startDate: "2026-05-03",
+      endDate: "2026-05-04",
+      startTime: "20:00",
+      endTime: "14:20",
+    });
+  });
+
+  it("extracts outbound and return legs from dash-separated airline route lines", () => {
+    const candidates = deterministicExtractionEngine.extractCandidates(
+      gmailSource({
+        subject: "Flight itinerary",
+        snippet: "Your airline itinerary is confirmed.",
+        bodyText: [
+          "Outbound flight: Amsterdam Schiphol (AMS) - Santiago Arturo Merino Benitez (SCL)",
+          "Departure: Wed, 29 Apr 2026, 1:05 PM",
+          "Arrival: Thu, 30 Apr 2026, 10:15 AM",
+          "Return flight: Santiago Arturo Merino Benitez (SCL) - Amsterdam Schiphol (AMS)",
+          "Departure: Sun, 3 May 2026, 8:00 PM",
+          "Arrival: Mon, 4 May 2026, 2:20 PM",
+        ].join("\n"),
+      }),
+      {
+        trip: tripFixture({
+          startDate: "2026-04-29",
+          endDate: "2026-05-04",
+        }),
+        planner: { items: [], customBases: [] },
+      },
+    );
+
+    expect(candidates).toHaveLength(2);
+    expect(candidates[0]).toMatchObject({
+      kind: "startingTravel",
+      fromLabel: "Amsterdam Schiphol",
+      toLabel: "Santiago Arturo Merino Benitez",
+      startDate: "2026-04-29",
+      endDate: "2026-04-30",
+    });
+    expect(candidates[1]).toMatchObject({
+      kind: "transport",
+      fromLabel: "Santiago Arturo Merino Benitez",
+      toLabel: "Amsterdam Schiphol",
+      startDate: "2026-05-03",
+      endDate: "2026-05-04",
+    });
+  });
+
+  it("does not treat an arrival-only date as the route departure date", () => {
+    const candidates = deterministicExtractionEngine.extractCandidates(
+      gmailSource({
+        subject: "Booking confirmation",
+        snippet: "Your flight is confirmed.",
+        bodyText: ["Booking confirmation", "Amsterdam, Netherlands to Santiago, Chile", "Arrival: 30 Apr 2026, 10:15"].join("\n"),
+      }),
+      {
+        trip: tripFixture({
+          startDate: "2026-04-29",
+          endDate: "2026-05-04",
+        }),
+        planner: { items: [], customBases: [] },
+      },
+    );
+
+    expect(candidates).toHaveLength(0);
+  });
+
+  it("builds an LLM prompt with trip context and strict JSON instructions", () => {
+    const prompt = buildImportLlmPrompt(gmailSource(), {
+      trip: tripFixture({
+        name: "Patagonia, Chile & Argentina",
+        startDate: "2026-04-29",
+        endDate: "2026-05-04",
+        planner: {
+          items: [],
+          customBases: [customBase({ baseName: "Santiago, Chile" })],
+        },
+      }),
+      planner: { items: [], customBases: [customBase({ baseName: "Santiago, Chile" })] },
+    });
+
+    expect(prompt).toContain("Return only valid JSON");
+    expect(prompt).toContain("Patagonia, Chile & Argentina");
+    expect(prompt).toContain("Santiago, Chile");
+    expect(prompt).toContain("Email subject: Flight confirmation");
+  });
+
+  it("includes extracted attachment text in the LLM prompt", () => {
+    const prompt = buildImportLlmPrompt(
+      gmailSource({
+        attachmentNames: ["ticket.pdf"],
+        attachmentTexts: [
+          {
+            name: "ticket.pdf",
+            mimeType: "application/pdf",
+            status: "extracted",
+            text: "Amsterdam Schiphol to Santiago Arturo Merino Benitez. Departure 29 Apr 2026.",
+          },
+        ],
+      }),
+      {
+        trip: tripFixture(),
+        planner: { items: [], customBases: [] },
+      },
+    );
+
+    expect(prompt).toContain("Attachment: ticket.pdf");
+    expect(prompt).toContain("Amsterdam Schiphol to Santiago Arturo Merino Benitez");
+  });
+
+  it("parses strict LLM JSON into import candidates", () => {
+    const candidates = parseImportLlmCandidates(gmailSource(), {
+      candidates: [
+        {
+          kind: "startingTravel",
+          confidence: 0.97,
+          title: "Amsterdam to Santiago",
+          startDate: "2026-04-29",
+          endDate: "2026-04-30",
+          startTime: "13:05",
+          endTime: "10:15",
+          fromLabel: "Amsterdam Schiphol",
+          toLabel: "Santiago Arturo Merino Benitez",
+          transportMode: "flight",
+        },
+        {
+          kind: "activity",
+          confidence: 0.2,
+          title: "Missing date should be ignored",
+        },
+      ],
+    });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      id: "gmail:msg-flight:llm-1-startingTravel",
+      kind: "startingTravel",
+      confidence: 0.97,
+      fromLabel: "Amsterdam Schiphol",
+      toLabel: "Santiago Arturo Merino Benitez",
+      startDate: "2026-04-29",
+      endDate: "2026-04-30",
+      startTime: "13:05",
+      endTime: "10:15",
+      transportMode: "flight",
+    });
+  });
+
+  it("supports fenced JSON from an LLM runtime", async () => {
+    const engine = createLlmExtractionEngine({
+      id: "gemma-4-e2b-test",
+      async generateJson() {
+        return [
+          "```json",
+          JSON.stringify({
+            candidates: [
+              {
+                kind: "transport",
+                confidence: 0.92,
+                title: "Santiago to Amsterdam",
+                startDate: "2026-05-03",
+                endDate: "2026-05-04",
+                fromLabel: "Santiago, Chile",
+                toLabel: "Amsterdam, Netherlands",
+                transportMode: "flight",
+              },
+            ],
+          }),
+          "```",
+        ].join("\n");
+      },
+    });
+
+    const candidates = await engine.extractCandidates(gmailSource(), {
+      trip: tripFixture(),
+      planner: { items: [], customBases: [] },
+    });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      kind: "transport",
+      fromLabel: "Santiago, Chile",
+      toLabel: "Amsterdam, Netherlands",
+      startDate: "2026-05-03",
+    });
+  });
+
+  it("falls back to the deterministic extractor when the LLM runtime fails", async () => {
+    const engine = createLlmExtractionEngine(
+      {
+        id: "gemma-4-e2b-test",
+        async generateJson() {
+          throw new Error("model unavailable");
+        },
+      },
+      deterministicExtractionEngine,
+    );
+
+    const candidates = await engine.extractCandidates(gmailSource(), {
+      trip: tripFixture(),
+      planner: { items: [], customBases: [] },
+    });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      kind: "startingTravel",
+      fromLabel: "Amsterdam, Netherlands",
+      toLabel: "Santiago, Chile",
+    });
+  });
+
   it("applies a flight candidate as one imported starting travel and one arrival base", () => {
     const result = applyImportCandidates({ items: [], customBases: [] }, [flightCandidate()], {
       importedAt: "2026-05-01T10:00:00.000Z",
@@ -226,6 +478,42 @@ describe("Gmail import foundation", () => {
     expect(result.customBases[0]).toMatchObject({
       baseName: "Santiago, Chile",
       startDate: "2026-04-30",
+    });
+  });
+
+  it("applies multiple route candidates from the same Gmail message", () => {
+    const result = applyImportCandidates(
+      { items: [], customBases: [] },
+      [
+        flightCandidate(),
+        flightCandidate({
+          id: "gmail:msg-flight:transport-2",
+          kind: "transport",
+          title: "Santiago, Chile to Amsterdam, Netherlands",
+          fromLabel: "Santiago, Chile",
+          toLabel: "Amsterdam, Netherlands",
+          startDate: "2026-05-03",
+          endDate: "2026-05-04",
+          startTime: "20:00",
+          endTime: "14:20",
+        }),
+      ],
+      {
+        importedAt: "2026-05-01T10:00:00.000Z",
+      },
+    );
+
+    expect(result.decisions).toMatchObject([{ status: "applied" }, { status: "applied" }]);
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0]).toMatchObject({ isStartingTravel: true, toBaseId: expect.any(String) });
+    expect(result.items[1].isStartingTravel).not.toBe(true);
+    expect(result.items[1]).toMatchObject({
+      fromLabel: "Santiago, Chile",
+      toLabel: "Amsterdam, Netherlands",
+      startDate: "2026-05-03",
+      endDate: "2026-05-04",
+      fromBaseId: expect.any(String),
+      toBaseId: expect.any(String),
     });
   });
 
@@ -430,6 +718,9 @@ describe("Gmail import foundation", () => {
     expect(getUrl.pathname).toBe("/gmail/v1/users/me/messages/message%2Fwith%2Fslash");
     expect(getUrl.searchParams.get("format")).toBe("metadata");
     expect(getUrl.searchParams.getAll("metadataHeaders")).toEqual(["Subject", "From", "Date"]);
+
+    const attachmentUrl = new URL(buildGmailAttachmentUrl("message/with/slash", "attachment/with/slash"));
+    expect(attachmentUrl.pathname).toBe("/gmail/v1/users/me/messages/message%2Fwith%2Fslash/attachments/attachment%2Fwith%2Fslash");
   });
 
   it("parses Gmail full messages into import sources", () => {
@@ -471,6 +762,86 @@ describe("Gmail import foundation", () => {
     });
     expect(source?.bodyText).toContain("Amsterdam, Netherlands");
     expect(source?.receivedAt).toBe("2026-04-20T10:00:00.000Z");
+  });
+
+  it("fetches PDF Gmail attachments and exposes extracted text to import sources", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ messages: [{ id: "msg-pdf" }] }), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "msg-pdf",
+            threadId: "thread-pdf",
+            historyId: "40",
+            snippet: "Flight confirmation itinerary",
+            payload: {
+              headers: [{ name: "Subject", value: "Flight confirmation" }],
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "msg-pdf",
+            threadId: "thread-pdf",
+            historyId: "40",
+            snippet: "Flight confirmation itinerary",
+            payload: {
+              headers: [{ name: "Subject", value: "Flight confirmation" }],
+              parts: [
+                {
+                  filename: "ticket.pdf",
+                  mimeType: "application/pdf",
+                  body: { attachmentId: "att-pdf", size: 1024 },
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: gmailBody("fake pdf bytes"), size: 14 }), { status: 200 }));
+
+    const result = await fetchGmailImportSources({
+      accessToken: "token",
+      queries: ['"flight" "confirmation"'],
+      pdfTextExtractor: async (_bytes, attachment) => `${attachment.name}: Amsterdam to Santiago, 29 Apr 2026`,
+    });
+
+    expect(result.sources).toHaveLength(1);
+    expect(result.sources[0].attachmentNames).toEqual(["ticket.pdf"]);
+    expect(result.sources[0].attachmentTexts).toMatchObject([
+      {
+        name: "ticket.pdf",
+        mimeType: "application/pdf",
+        status: "extracted",
+        text: "ticket.pdf: Amsterdam to Santiago, 29 Apr 2026",
+      },
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("prepares a configured local import model runtime", async () => {
+    const prepare = vi.fn();
+    vi.stubGlobal("window", {
+      __lbtImportLlm: {
+        id: "gemma-4-e2b-test",
+        prepare,
+        generateJson: vi.fn(),
+      },
+    });
+
+    const result = await prepareImportModel();
+
+    expect(result).toMatchObject({
+      status: "ready",
+      runtimeId: "gemma-4-e2b-test",
+    });
+    expect(prepare).toHaveBeenCalledWith({ model: "gemma-4-e2b" });
+    expect(getImportModelSetupStatus()).toMatchObject({ status: "ready" });
   });
 
   it("falls back to search when Gmail history is stale", async () => {

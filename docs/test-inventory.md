@@ -66,7 +66,16 @@ Covers the Gmail import domain foundation.
 - Candidate scoring rejects irrelevant email-like sources and accepts likely travel/booking sources.
 - Deterministic extraction creates a high-confidence starting-travel candidate from structured confirmation text.
 - Deterministic extraction handles natural flight route text, month-name dates, AM/PM times, and trip-year inference.
+- Deterministic extraction can split one confirmation email into multiple route candidates, such as outbound and return flights.
+- Deterministic extraction supports common airline route formats with outbound/return labels and dash-separated airport names.
+- Arrival-only date text is not used as a fallback departure date.
+- LLM extraction builds a strict JSON prompt from Gmail source text and active trip context.
+- LLM extraction includes extracted PDF attachment text in the prompt.
+- LLM extraction parses strict or fenced JSON into validated import candidates.
+- LLM extraction ignores structurally incomplete candidates before planner mutation.
+- LLM extraction can fall back to deterministic extraction when the local model runtime fails.
 - High-confidence flight imports create one imported starting travel item and one arrival base.
+- Multiple route candidates from the same Gmail message can apply without source-level deduplication dropping later legs.
 - Re-importing the same source id updates the imported item instead of duplicating it.
 - Matching manual planner items are not silently overwritten by imported candidates.
 - Gmail incremental history id selection keeps the highest available history id.
@@ -77,8 +86,10 @@ Covers the Gmail import domain foundation.
 - Gmail import publishes planner snapshots only when applied decisions changed planner data.
 - Extracted Gmail candidates outside the active trip date/place context are rejected before planner mutation.
 - Stale Gmail history ids are dropped when fallback search cannot provide a newer cursor.
-- Gmail REST URLs are built with the expected search, metadata, and message parameters.
+- Gmail REST URLs are built with the expected search, metadata, message, and attachment parameters.
 - Gmail API messages are parsed into import sources with headers, snippets, body text, dates, and attachment names.
+- Gmail full-message fetches can download PDF attachments and expose extracted text on import sources.
+- Configured local import model runtimes are prepared when Gmail import connects.
 - Gmail API fetches expose debug counts for raw ids, metadata sources, and full-message sources.
 - Stale Gmail history falls back to query search.
 - Unavailable Gmail message ids from incremental history are skipped and recovered through query search.
@@ -86,6 +97,20 @@ Covers the Gmail import domain foundation.
 - Import run coordination collapses repeated triggers into one in-flight run plus one follow-up run.
 
 Update this file when Gmail import source metadata, Gmail API request handling, deterministic extraction, candidate scoring, source deduplication, or import coalescing changes.
+
+### `tests/unit/import-evals.test.ts`
+
+Covers fixture-based Gmail import regression examples that behave like lightweight extraction evals.
+
+- Return-flight booking confirmations import one starting travel candidate plus the return transport leg.
+- Mid-trip stay confirmations can create a base city and stay even when no starting flight is booked.
+- Valid confirmations with incidental receipt or terms text still score high enough to be extracted.
+- Date-range-only stay confirmations extract separate check-in and check-out dates.
+- Promotional/program, receipt-only, and long paragraph-like emails are rejected instead of becoming planner items.
+- Candidate titles are kept short and sentence-like policy/marketing paragraphs are not used as planner titles.
+- Multiple emails for the same booking reference collapse into one imported planner item instead of duplicates.
+
+Update this file and `tests/fixtures/importEmailFixtures.ts` when real-world Gmail import failures expose a new email shape, false positive, duplicate pattern, or extraction expectation.
 
 ### `tests/unit/timeline-defaults.test.ts`
 
