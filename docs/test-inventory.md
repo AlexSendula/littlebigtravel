@@ -205,7 +205,7 @@ These are intentionally not covered yet:
 - Full map tile/canvas visual snapshots.
 - Exhaustive gesture physics and every possible swipe angle.
 - Offline reinstall/data persistence behavior.
-- Sharing, auth, subscriptions, payments, sync, and backend behavior.
+- Sharing, auth, sync, and backend behavior.
 - Accessibility audits beyond selectors, roles, and current interaction checks.
 
 ## Maintenance Rule

@@ -39,7 +39,6 @@ This document captures product ideas and roadmap status discussed during early d
 - Users/accounts.
 - Backend sync.
 - Sharing with friends/family.
-- Payments/subscriptions.
 - Expected/actual cost tracking.
 - Todo/bucket lists linked to items.
 - Importing or saving loose ideas from Google Maps, Tripadvisor, Pinterest, YouTube, blogs, and similar sources.

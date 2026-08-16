@@ -1,5 +1,7 @@
 # LittleBigTravel
 
+**[littlebigtravel.net](https://littlebigtravel.net)**
+
 A mobile-first, local-first travel planner. The map is the home screen, the
 planner is tied to the active trip, and your data lives on your device.
 
@@ -8,7 +10,8 @@ in the browser.
 
 ## Status
 
-Pre-launch. Local development only; nothing is deployed and there are no users.
+Pre-launch, but deployed. Live at the link above; no accounts, no users, and
+nothing leaves your device.
 
 **Works today:** multiple trips, map home screen, planner with stays,
 activities and travel legs, auto-generated arrival/departure and check-in/out
@@ -108,3 +111,31 @@ No environment variables are required to run the planner. `.env` is gitignored.
 
 Note that Vite compiles any `VITE_*` variable into the client bundle at build
 time — they ship to every visitor and are not secrets.
+
+## Deployment
+
+Built as a container and served as static files:
+
+```bash
+docker build -t littlebigtravel .
+docker run -p 8080:8080 littlebigtravel
+```
+
+`Dockerfile` is a two-stage build — `node:20-alpine` compiles the bundle, and
+the runtime image is `nginx-unprivileged` with no Node present (~84 MB, running
+as uid 101). `infra/nginx.conf` handles SPA fallback, immutable caching for
+content-hashed assets, and a `/health` endpoint.
+
+Deployed to Dokploy on a Hetzner VPS, behind Traefik for TLS and Cloudflare for
+DNS.
+
+## Licence
+
+**All rights reserved.**
+
+The source is public so it can be read, reviewed, and learned from — it is not
+licensed for reuse, redistribution, or derivative works. No open source licence
+is granted, and the absence of a `LICENSE` file is deliberate rather than an
+oversight.
+
+If you want to use part of it, ask.

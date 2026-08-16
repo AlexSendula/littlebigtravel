@@ -16,7 +16,7 @@ Status legend:
 
 - `[~]` Keep development costs low while the product is still pre-launch.
 - `[~]` Prefer free or low-cost providers during development.
-- `[ ]` Before commercial launch, replace or license any provider that is not suitable for paid production use.
+- `[ ]` Before commercial launch, replace or license any provider that is not suitable for commercial production use.
 - `[~]` Confirm whether the first commercial launch is web-only PWA, app-store PWA wrapper, native wrapper, or both. Current direction is installed PWA first; an app-store presence is far future. Keeping the client a static bundle preserves the Capacitor option at no cost, since Capacitor cannot wrap a server-rendered app.
 
 ## Map, Tiles, Geocoding, And Places
@@ -85,7 +85,6 @@ Current development provider notes:
 - `[ ]` Define required account data:
   - email or passkey identity
   - display name
-  - billing status
   - shared trip permissions
 - `[x]` Add cloud sync only when backup or sharing requires it. Still deferred; nothing yet requires it.
 - `[x]` Decide the sync architecture. IndexedDB remains the local replica and the app's only read/write path; Postgres becomes the canonical server copy. Data is stored as relational rows, not CRDT blobs, because the MCP server, suggestions, and access control all need queryable trip data. ElectricSQL for the read path, writes through the API. See `docs/architecture.md`.
@@ -95,26 +94,6 @@ Current development provider notes:
   - editor
   - viewer
 - `[ ]` Add invitation and revocation flows for friends/family.
-
-## Payments And Subscriptions
-
-- `[ ]` Decide pricing model:
-  - free trial
-  - one-time purchase
-  - subscription
-  - freemium limits
-- `[ ]` Decide payment processor.
-- `[ ]` Define what is paid:
-  - multiple trips
-  - cloud backup
-  - sharing
-  - recommendations
-  - offline maps
-  - advanced budget tracking
-- `[ ]` Keep billing entitlement server-side, not only in frontend local flags.
-- `[ ]` Add refund/cancellation handling.
-- `[ ]` Add invoices/receipts if required.
-- `[ ]` Review app-store payment rules if launching through app stores.
 
 ## Privacy, Legal, And Compliance
 
@@ -203,7 +182,7 @@ Current development provider notes:
 - `[ ]` Define authentication approach before accounts.
 - `[ ]` Use secure token/session storage.
 - `[ ]` Do not store secrets in frontend code.
-- `[ ]` Add backend authorization checks before sharing or paid features.
+- `[ ]` Add backend authorization checks before sharing features.
 - `[ ]` Validate all synced planner data server-side once a backend exists.
 - `[ ]` Add abuse protection for public or shared content.
 
@@ -228,6 +207,5 @@ Current development provider notes:
 - `[ ]` Which geocoder is good enough for global travel planning?
 - `[ ]` Should places/recommendations use Google, Tripadvisor, curated data, or a mixed backend approach?
 - `[ ]` Is the app valuable enough without accounts at first launch?
-- `[ ]` Which paid feature is compelling enough to charge for?
 - `[ ]` What happens if a user uninstalls the PWA before cloud backup exists?
 - `[ ]` What data do we absolutely need to collect, and what can we avoid collecting?
