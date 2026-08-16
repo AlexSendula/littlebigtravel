@@ -1,0 +1,4 @@
+interface:
+  display_name: "LBT Testing Gate"
+  short_description: "Maintain the app's local testing gate."
+  default_prompt: "Update the LBT testing gate for this change."

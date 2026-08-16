@@ -1,0 +1,1031 @@
+@import url("https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap");
+
+:root {
+  color: #24221f;
+  background: #dce7e5;
+  font-family:
+    "Comic Neue", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --ink: #24221f;
+  --ink-soft: #5f5a51;
+  --ink-faint: rgb(36 34 31 / 0.18);
+  --paper: #f4f1e8;
+  --paper-glass: rgb(247 244 235 / 0.82);
+  --paper-solid: #faf7ef;
+  --line: rgb(36 34 31 / 0.14);
+  --patagonia: #9fb3a4;
+  --north: #d6c58c;
+  --wine: #be8a82;
+  --city: #a7b0bd;
+  --water: #9eb7c2;
+  --map-edge: #dce7e5;
+  --shadow: 0 20px 58px rgb(25 22 18 / 0.2);
+  --trip-menu-grab-bottom: 2px;
+  --trip-menu-grab-height: 14px;
+  --trip-menu-miss-zone-height: 68px;
+  --swipe-handle-width: 46px;
+  --swipe-handle-height: 4px;
+  --swipe-handle-fill: rgb(36 34 31 / 0.22);
+  --swipe-handle-shadow: 0 1px 0 rgb(255 255 255 / 0.62);
+}
+
+* {
+  box-sizing: border-box;
+  font-family:
+    "Comic Neue", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+a,
+[role="button"],
+input,
+textarea,
+select,
+.map-marker-button,
+.planner-swipe-delete-edge-hit-area,
+.trip-card-swipe-edge-hit-area {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input::-webkit-contacts-auto-fill-button,
+input::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  display: none !important;
+  pointer-events: none;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100lvh;
+  margin: 0;
+  background: var(--map-edge);
+}
+
+body {
+  overflow: hidden;
+  background: var(--map-edge);
+}
+
+button {
+  color: inherit;
+  font: inherit;
+}
+
+button,
+input,
+textarea,
+select,
+.maplibregl-ctrl,
+.maplibregl-ctrl *,
+.map-marker-button,
+.map-marker-label {
+  font-family:
+    "Comic Neue", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+button:focus-visible,
+.map-marker-button:focus-visible {
+  outline: 2px solid #f0d782;
+  outline-offset: 3px;
+}
+
+.app-shell {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100lvh;
+  min-height: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.topbar {
+  --topbar-pull: 0px;
+  position: fixed;
+  z-index: 12;
+  top: max(8px, env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  display: block;
+  height: calc(78px + var(--topbar-pull));
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px 12px 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgb(250 247 239 / 0.98), rgb(246 243 234 / 0.98)),
+    radial-gradient(circle at 12% 20%, rgb(184 154 90 / 0.08), transparent 28%);
+  box-shadow: 0 10px 30px rgb(36 34 31 / 0.1);
+  touch-action: pan-y;
+  transition: height 220ms cubic-bezier(0.22, 0.8, 0.28, 1);
+  will-change: height;
+}
+
+.topbar.is-pulling-open {
+  transition: none;
+}
+
+.app-shell.trip-menu-active .topbar {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.topbar-trip-open-zone {
+  position: fixed;
+  z-index: 11;
+  top: calc(max(8px, env(safe-area-inset-top)) + 78px - 4px);
+  right: 12px;
+  left: 12px;
+  height: var(--trip-menu-miss-zone-height);
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-shell.trip-menu-active .topbar-trip-open-zone {
+  pointer-events: none;
+}
+
+.topbar p,
+.topbar h2 {
+  margin: 0;
+}
+
+.topbar p {
+  color: var(--ink-soft);
+  margin-top: 4px;
+  font-size: 0.76rem;
+  font-weight: 760;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.topbar h2 {
+  color: var(--ink);
+  font-size: clamp(1.06rem, 4.2vw, 1.32rem);
+  font-weight: 840;
+  letter-spacing: 0;
+  line-height: 1.02;
+}
+
+.swipe-handle-bar {
+  display: block;
+  width: var(--swipe-handle-width);
+  height: var(--swipe-handle-height);
+  border-radius: 999px;
+  background: var(--swipe-handle-fill);
+  box-shadow: var(--swipe-handle-shadow);
+}
+
+.topbar-trip-grab {
+  position: absolute;
+  right: 0;
+  bottom: var(--trip-menu-grab-bottom);
+  left: 0;
+  display: grid;
+  height: var(--trip-menu-grab-height);
+  place-items: center;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+
+.topbar-trip-grab span {
+  pointer-events: none;
+}
+
+.trip-drawer-layer {
+  --trip-drawer-collapse-y: 0px;
+  --trip-drawer-backdrop-opacity: 1;
+  --trip-drawer-menu-opacity: 1;
+  --trip-drawer-summary-opacity: 0;
+  --trip-drawer-outer-top: max(8px, env(safe-area-inset-top));
+  position: fixed;
+  z-index: 42;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--trip-drawer-outer-top) 12px max(12px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: transparent;
+}
+
+.trip-drawer-layer::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: rgb(36 34 31 / 0.24);
+  backdrop-filter: blur(4px);
+  content: "";
+  opacity: var(--trip-drawer-backdrop-opacity);
+  transition: opacity 360ms cubic-bezier(0.2, 1.28, 0.32, 1);
+  will-change: opacity;
+  animation: trip-drawer-backdrop-in 220ms ease both;
+}
+
+.trip-drawer-layer.is-pulling-close::before {
+  transition: none;
+}
+
+.trip-drawer-layer.is-closing-close::before {
+  transition: opacity 320ms cubic-bezier(0.22, 0.68, 0.18, 1);
+}
+
+.trip-drawer {
+  --trip-drawer-collapsed-height: 78px;
+  position: relative;
+  z-index: 1;
+  width: min(520px, 100%);
+  height: calc(100% - var(--trip-drawer-collapse-y));
+  min-height: var(--trip-drawer-collapsed-height);
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgb(250 247 239 / 0.98), rgb(246 243 234 / 0.98)),
+    radial-gradient(circle at 12% 20%, rgb(184 154 90 / 0.08), transparent 28%);
+  box-shadow: 0 10px 30px rgb(36 34 31 / 0.1);
+  padding: 16px 12px 24px;
+  transition: height 360ms cubic-bezier(0.2, 1.28, 0.32, 1);
+  will-change: height;
+  animation: trip-drawer-expand 240ms cubic-bezier(0.2, 0.86, 0.3, 1);
+  -webkit-overflow-scrolling: touch;
+}
+
+.trip-drawer.is-pulling-close {
+  overflow: hidden;
+  transition: none;
+}
+
+.trip-drawer.is-closing-close {
+  overflow: hidden;
+  transition: height 320ms cubic-bezier(0.22, 0.68, 0.18, 1);
+}
+
+@keyframes trip-drawer-expand {
+  from {
+    height: var(--trip-drawer-collapsed-height);
+  }
+
+  to {
+    height: calc(100% - var(--trip-drawer-collapse-y));
+  }
+}
+
+@keyframes trip-drawer-backdrop-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: var(--trip-drawer-backdrop-opacity);
+  }
+}
+
+.trip-drawer-grab {
+  position: absolute;
+  right: 0;
+  top: auto;
+  bottom: var(--trip-menu-grab-bottom);
+  left: 0;
+  z-index: 5;
+  display: grid;
+  height: var(--trip-menu-grab-height);
+  margin: 0;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+
+.trip-drawer-grab span {
+  pointer-events: none;
+}
+
+.trip-drawer-collapsed-summary {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  left: 0;
+  min-height: var(--trip-drawer-collapsed-height);
+  padding: 8px 12px 24px;
+  opacity: var(--trip-drawer-summary-opacity);
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.trip-drawer-collapsed-summary h2,
+.trip-drawer-collapsed-summary p {
+  margin: 0;
+}
+
+.trip-drawer-collapsed-summary h2 {
+  color: var(--ink);
+  font-size: clamp(1.06rem, 4.2vw, 1.32rem);
+  font-weight: 840;
+  line-height: 1.02;
+}
+
+.trip-drawer-collapsed-summary p {
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 760;
+}
+
+.trip-drawer-menu-content {
+  position: relative;
+  z-index: 1;
+  opacity: var(--trip-drawer-menu-opacity);
+  transition: opacity 160ms ease;
+}
+
+.trip-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trip-drawer-header p,
+.trip-drawer-header h2 {
+  margin: 0;
+}
+
+.trip-drawer-header p {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.trip-drawer-header h2 {
+  margin-top: 3px;
+  font-size: 1.24rem;
+  line-height: 1;
+  animation: trip-drawer-content-in 180ms ease both;
+}
+
+.trip-drawer-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.trip-drawer-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 13px;
+  animation: trip-drawer-content-in 190ms ease both;
+}
+
+@keyframes trip-drawer-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.trip-card-swipe {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9px;
+  background: transparent;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  overscroll-behavior-x: contain;
+}
+
+.trip-card-swipe-edge-hit-area {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 4;
+  width: clamp(86px, 28%, 132px);
+  background: transparent;
+  touch-action: none;
+  pointer-events: auto;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.trip-card-swipe-edge-hit-area.archive {
+  left: 0;
+}
+
+.trip-card-swipe-edge-hit-area.delete {
+  right: 0;
+}
+
+.trip-card-action {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, #c26b6b 42%, var(--line));
+  border-radius: inherit;
+  background: color-mix(in srgb, #c26b6b calc(18% + (var(--trip-action-progress, 0) * 12%) + (var(--trip-action-commit, 0) * 16%)), rgb(255 255 255 / 0.84));
+  color: color-mix(in srgb, #8e3535 calc(76% + (var(--trip-action-commit, 0) * 16%)), var(--ink));
+  opacity: 0;
+  transform: translateX(calc(18px - (var(--trip-action-progress, 0) * 18px))) scale(calc(0.96 + (var(--trip-action-progress, 0) * 0.04)));
+  transition:
+    opacity 140ms ease,
+    background-color 140ms ease,
+    transform 180ms ease;
+  pointer-events: none;
+}
+
+.trip-card-action.archive {
+  justify-content: flex-start;
+  padding-left: 14px;
+  border: 1px solid color-mix(in srgb, #8fa68f 40%, var(--line));
+  background: color-mix(in srgb, #8fa68f calc(14% + (var(--trip-action-progress, 0) * 10%) + (var(--trip-action-commit, 0) * 16%)), rgb(255 255 255 / 0.84));
+  color: color-mix(in srgb, #536b54 calc(78% + (var(--trip-action-commit, 0) * 14%)), var(--ink));
+  transform: translateX(calc(-18px + (var(--trip-action-progress, 0) * 18px))) scale(calc(0.96 + (var(--trip-action-progress, 0) * 0.04)));
+}
+
+.trip-card-action.delete {
+  justify-content: flex-end;
+  padding-right: 14px;
+}
+
+.trip-card-swipe.is-active .trip-card-action {
+  opacity: calc(0.3 + (var(--trip-action-progress, 0) * 0.7));
+}
+
+.trip-card-content {
+  position: relative;
+  z-index: 1;
+  border-radius: inherit;
+  transform: translate3d(var(--trip-card-x, 0px), 0, 0);
+  transition: transform 220ms cubic-bezier(0.2, 0.78, 0.25, 1);
+  will-change: transform;
+}
+
+.trip-card-content > * {
+  margin: 0;
+}
+
+.trip-card {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 7px;
+  border: 1px solid rgb(36 34 31 / 0.15);
+  border-radius: 8px;
+  background: #faf7ef;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.trip-card-swipe.is-tracking,
+.trip-card-swipe.is-swiping {
+  touch-action: none;
+}
+
+.trip-card-swipe.is-tracking .trip-card-content,
+.trip-card-swipe.is-swiping .trip-card-content {
+  transition: none;
+}
+
+.trip-card-swipe.is-tracking .trip-card-action,
+.trip-card-swipe.is-swiping .trip-card-action {
+  transition: none;
+}
+
+.trip-card-swipe.is-completing .trip-card-content {
+  transition: transform 150ms ease-out;
+}
+
+.trip-card-swipe.active .trip-card {
+  border-color: color-mix(in srgb, #b89a5a 45%, var(--line));
+  background: color-mix(in srgb, #b89a5a 10%, #faf7ef);
+}
+
+.trip-card span {
+  font-size: 0.88rem;
+  font-weight: 850;
+  line-height: 1.08;
+}
+
+.trip-card small,
+.trip-drawer-empty {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+
+.trip-drawer-empty {
+  margin: 8px 2px 0;
+}
+
+.trip-drawer-add-button,
+.trip-drawer-archive-button,
+.trip-drawer-create button {
+  display: grid;
+  width: 38px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, #b89a5a 38%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, #b89a5a 18%, rgb(255 255 255 / 0.72));
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.trip-drawer-archive-button {
+  border-color: color-mix(in srgb, #8fa68f 34%, var(--line));
+  background: color-mix(in srgb, #8fa68f 12%, rgb(255 255 255 / 0.76));
+  color: color-mix(in srgb, #536b54 72%, var(--ink));
+}
+
+.trip-drawer-archive-button.active {
+  border-color: color-mix(in srgb, #8fa68f 50%, var(--line));
+  background: color-mix(in srgb, #8fa68f 24%, rgb(255 255 255 / 0.78));
+}
+
+.trip-drawer-create-shell {
+  margin-top: 12px;
+  overflow: hidden;
+  animation: trip-drawer-create-in 180ms cubic-bezier(0.2, 0.78, 0.25, 1) both;
+}
+
+.trip-drawer-create-shell.inline {
+  margin-top: 10px;
+}
+
+.trip-drawer-create-shell.closing {
+  pointer-events: none;
+  animation: trip-drawer-create-out 180ms cubic-bezier(0.55, 0, 0.7, 0.2) both;
+}
+
+.trip-drawer-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  padding: 2px;
+}
+
+@keyframes trip-drawer-create-in {
+  from {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    max-height: 58px;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes trip-drawer-create-out {
+  from {
+    max-height: 58px;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.trip-drawer-create button {
+  display: inline-flex;
+  width: auto;
+  min-width: 116px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  font-size: 0.88rem;
+  font-weight: 820;
+  white-space: nowrap;
+}
+
+.trip-drawer-create button:disabled {
+  border-color: color-mix(in srgb, var(--line) 86%, #fff);
+  background: rgb(255 255 255 / 0.48);
+  color: color-mix(in srgb, var(--ink-soft) 64%, #fff);
+  cursor: not-allowed;
+}
+
+.trip-drawer-create input,
+.planner-trip-gate-card input {
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.62);
+  color: var(--ink);
+  padding: 0 10px;
+  font-size: 1rem;
+  font-weight: 780;
+}
+
+.trip-drawer-create input:focus,
+.planner-trip-gate-card input:focus {
+  outline: 2px solid rgb(184 154 90 / 0.42);
+  outline-offset: 2px;
+}
+
+.trip-drawer-create input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.map-stage {
+  position: fixed;
+  z-index: 0;
+  top: calc(env(safe-area-inset-top) * -1);
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: calc(100vh + env(safe-area-inset-top) + 220px);
+  height: calc(100lvh + env(safe-area-inset-top) + 220px);
+  overflow: hidden;
+  background: var(--map-edge);
+}
+
+.map-canvas {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 300ms ease;
+  contain: layout paint size;
+}
+
+.map-stage.ready .map-canvas {
+  opacity: 1;
+}
+
+/* The map style itself is tuned to grayscale; avoiding canvas-level CSS filters keeps WebGL panning and zooming much smoother. */
+.maplibregl-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  filter: none;
+}
+
+.maplibregl-map,
+.maplibregl-canvas-container {
+  width: 100%;
+  height: 100%;
+}
+
+.map-vignette,
+.map-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.map-vignette {
+  background: radial-gradient(circle at 50% 44%, transparent 0 38%, rgb(36 34 31 / 0.08) 100%);
+}
+
+.map-grain {
+  opacity: 0.12;
+  background-image:
+    linear-gradient(11deg, transparent 0 47%, rgb(36 34 31 / 0.08) 48% 49%, transparent 50%),
+    radial-gradient(circle at 18% 22%, rgb(36 34 31 / 0.12), transparent 18%),
+    radial-gradient(circle at 72% 62%, rgb(36 34 31 / 0.1), transparent 16%);
+  background-size: 18px 18px, 180px 180px, 220px 220px;
+}
+
+.map-controls {
+  position: fixed;
+  z-index: 13;
+  top: max(12px, env(safe-area-inset-top));
+  right: 14px;
+  display: grid;
+  gap: 7px;
+}
+
+.map-controls button {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgb(250 247 239 / 0.94);
+  color: var(--ink);
+  box-shadow: 0 10px 26px rgb(36 34 31 / 0.08);
+  cursor: pointer;
+  transition:
+    transform 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.map-controls button:hover {
+  transform: translateY(-1px);
+  border-color: rgb(36 34 31 / 0.28);
+  background: rgb(255 255 255 / 0.92);
+}
+
+.map-controls button:active {
+  transform: translateY(0);
+}
+
+.maplibregl-ctrl-bottom-left {
+  bottom: max(10px, env(safe-area-inset-bottom));
+  left: 10px;
+}
+
+.maplibregl-ctrl-attrib {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgb(250 247 239 / 0.72) !important;
+  color: rgb(36 34 31 / 0.58);
+  font-size: 0.64rem;
+}
+
+.maplibregl-ctrl-attrib a {
+  color: rgb(36 34 31 / 0.72);
+}
+
+.map-stop-marker {
+  color: var(--ink);
+  width: 0;
+  height: 0;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.map-stop-marker.child-stop {
+  z-index: 1;
+}
+
+.map-stop-marker.selected {
+  z-index: 6;
+}
+
+.map-marker-button {
+  position: absolute;
+  top: -14px;
+  left: -13px;
+  display: inline-flex;
+  min-width: 28px;
+  min-height: 28px;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px 4px 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  transform-origin: center;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    filter 180ms ease;
+}
+
+.map-stop-marker.major .map-marker-button,
+.map-stop-marker.hidden .map-marker-button {
+  top: -13px;
+  left: -12px;
+}
+
+.map-marker-button:hover {
+  transform: translateY(-1px) scale(1.03);
+}
+
+.map-marker-glyph {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border: 2px solid currentColor;
+  background: rgb(250 247 239 / 0.72);
+  box-shadow:
+    0 0 0 4px rgb(250 247 239 / 0.54),
+    0 8px 18px rgb(36 34 31 / 0.18);
+}
+
+.map-marker-glyph::after {
+  position: absolute;
+  inset: 4px;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0.24;
+  content: "";
+}
+
+.map-stop-marker.base .map-marker-glyph {
+  border-radius: 50%;
+}
+
+.map-stop-marker.major .map-marker-glyph {
+  width: 15px;
+  height: 15px;
+  border-width: 1.8px;
+  border-radius: 3px;
+  transform: rotate(45deg);
+}
+
+.map-stop-marker.hidden .map-marker-glyph {
+  width: 13px;
+  height: 13px;
+  border-style: dashed;
+  border-radius: 50%;
+}
+
+.map-marker-label {
+  display: block;
+  max-width: 132px;
+  overflow: hidden;
+  padding: 4px 7px;
+  border: 1px solid rgb(36 34 31 / 0.1);
+  border-radius: 999px;
+  background: rgb(250 247 239 / 0.76);
+  color: var(--ink);
+  font-size: 0.76rem;
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgb(36 34 31 / 0.1);
+  transition:
+    max-width 180ms ease,
+    opacity 180ms ease,
+    padding 180ms ease;
+}
+
+.map-stop-marker.patagonia {
+  color: #526c5c;
+}
+
+.map-stop-marker.north {
+  color: #8a7536;
+}
+
+.map-stop-marker.wine {
+  color: #8f534e;
+}
+
+.map-stop-marker.city {
+  color: #586273;
+}
+
+.map-stop-marker.water {
+  color: #467782;
+}
+
+.map-stop-marker.selected .map-marker-button {
+  filter: saturate(1.12);
+}
+
+.map-stop-marker.selected .map-marker-glyph {
+  background: currentColor;
+  box-shadow:
+    0 0 0 4px rgb(250 247 239 / 0.82),
+    0 0 0 8px color-mix(in srgb, currentColor 20%, transparent),
+    0 14px 30px rgb(36 34 31 / 0.22);
+}
+
+.map-stop-marker.selected .map-marker-glyph::after {
+  background: var(--paper);
+  opacity: 0.72;
+}
+
+.map-stop-marker.selected .map-marker-label {
+  border-color: color-mix(in srgb, currentColor 30%, transparent);
+  background: rgb(250 247 239 / 0.94);
+}
+
+.bottom-location-nav {
+  position: fixed;
+  overflow: hidden;
+  z-index: 16;
+  right: 12px;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  left: 12px;
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  min-height: 58px;
+  padding-right: 5px;
+  padding-bottom: 5px;
+  padding-left: 5px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgb(250 247 239 / 0.9);
+  box-shadow: 0 10px 28px rgb(36 34 31 / 0.09);
+  backdrop-filter: blur(4px);
+}
+
+.bottom-location-grab {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.bottom-location-label {
+  min-width: 0;
+}
+
+.bottom-location-label strong {
+  display: block;
+  overflow: hidden;
+  text-align: center;
+  color: var(--ink);
+  font-size: 0.98rem;
+  font-weight: 860;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bottom-location-label small {
+  display: block;
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.bottom-location-nav button {
+  display: grid;
+  width: 44px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.36);
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.bottom-location-nav button:hover {
+  border-color: rgb(36 34 31 / 0.28);
+  background: rgb(255 255 255 / 0.64);
+}
+
+.bottom-location-nav button:active {
+  transform: translateY(1px);
+}
+
+.bottom-location-nav button:disabled {
+  opacity: 0.42;
+  cursor: default;
+  background: rgb(255 255 255 / 0.22);
+  border-color: color-mix(in srgb, var(--line) 78%, transparent);
+}
+
+.bottom-location-nav button:disabled:hover,
+.bottom-location-nav button:disabled:active {
+  transform: none;
+  background: rgb(255 255 255 / 0.22);
+}
