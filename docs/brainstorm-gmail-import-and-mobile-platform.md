@@ -1,6 +1,6 @@
 # Brainstorm: Gmail Import Rebuild And Mobile Platform Direction
 
-Last updated: 2026-08-19
+Last updated: 2026-08-23
 
 This document captures a full working session revisiting the Gmail auto-import feature on
 `feature/gmail-import`. What began as "why is import so inconsistent?" turned into a platform
@@ -233,7 +233,14 @@ evals-first sequencing decided below.
 2. **No bring-your-own API key.** Judged unrealistic — most users will not obtain and paste an API
    key for this.
 
-3. **No backend inference proxy.** Rejected on cost; it would mean paying per user.
+3. **No cloud LLM inference, including via our own proxy.** Rejected on cost: per-token spend
+   scales with every user, forever.
+
+   This is specifically about **inference**. It does not rule out the general application backend
+   already on the roadmap — Postgres, ElectricSQL sync, Auth.js + passkeys, family sharing, backup,
+   and later an MCP server over that API. That runs on the Dokploy/Hetzner box at a fixed few euros
+   a month regardless of user count, and it does not conflict with on-device extraction: extraction
+   stays on the phone, the backend handles sync and sharing.
 
 4. Consequently the architecture is **tier 1 + tier 2 only**:
    - **Tier 1** — schema.org JSON-LD/microdata extraction, then sender-aware heuristics. On-device,
@@ -256,7 +263,13 @@ evals-first sequencing decided below.
    the emulator) and Android *tier 2* (ML Kit GenAI is a separate API, later phase). Android
    *builds* come free with Expo from day one, and tier 1 runs there identically.
 
-9. **freya-devkit runs on `main` before the migration**, for a specific purpose: capturing
+9. **The web build survives as `apps/web`.** Decided on portfolio grounds. The repository is public
+   and used when applying for roles; a live URL is what gets clicked in the first thirty seconds,
+   and a native app has no equivalent — nobody installs a TestFlight build to evaluate a candidate.
+   The monorepo makes keeping both natural rather than a hack: one domain package, two thin UI
+   layers. The web build may lag on features; it exists to be clickable.
+
+10. **freya-devkit runs on `main` before the migration**, for a specific purpose: capturing
    undocumented interaction behaviour (chain visibility rules, gesture semantics, generated-item
    logic) that the UI rewrite would otherwise destroy, plus a security scan of the publicly deployed
    app. Structural artifacts (code-graph, architecture docs) will need regenerating after the
@@ -270,7 +283,7 @@ evals-first sequencing decided below.
 |---|---|
 | Consumer AI subscriptions | Prohibited by provider terms; enforced |
 | Bring-your-own API key | Users won't do it for a travel app |
-| Backend inference proxy | Ongoing per-user cost |
+| Cloud LLM inference via our own proxy | Per-token cost scaling with every user. Note this rejects *inference* only — the planned application backend (Postgres, sync, auth) is a fixed cost and remains on the roadmap |
 | Apple/Chrome built-in models from the web app | Native-only and desktop-only respectively |
 | In-browser model download (WebLLM etc.) | ~1GB download, 256MB buffer cap, ≤1.5B params, 70–75% coverage, known iOS crashes — all of which the native path removes |
 | Capacitor | Still a WebView; the gesture and haptic problems are inherent to it, not incidental. Also carries App Store Guideline 4.2 exposure |
@@ -282,7 +295,24 @@ evals-first sequencing decided below.
 
 ## 7. Plan Shape
 
-Three independently valuable projects, sequenced **A → B → C**.
+### Agreed order of work
+
+1. **Run freya-devkit on the app** to map and document everything before the migration.
+2. **Mobile native implementation** (Project B).
+3. **Gmail import rebuild** (Projects A and C).
+4. Other product features.
+
+This inverts the A-before-B ordering originally argued below. The trade-off is recorded in
+"Sequencing note" at the end of this section.
+
+Running alongside, on its own branch: an **MCP server spike** — an experiment letting Claude create
+and update trips in the app through MCP tools. Independent of the above, and useful as an early
+proof of the shared-domain-package thesis, since the MCP server would be the domain layer's second
+consumer.
+
+### The three import projects
+
+Three independently valuable projects, originally sequenced **A → B → C**.
 
 ### A. Import extraction core *(portable domain work)*
 
@@ -359,6 +389,24 @@ a deliberate split"*.
 The corpus is real personal email. It stays **out of git** — local only — with a small hand-redacted
 subset committed as public fixtures so tests run on a clean checkout.
 
+### Sequencing note: why B before A is acceptable
+
+The original argument for doing A first was that the current web app has working Gmail OAuth and is
+therefore the instrument used to harvest the email corpus; migrating first would remove that
+instrument until B completed.
+
+That argument is largely neutralised by decision 9 — **`apps/web` survives**. The web build keeps
+its Gmail connection through the migration, so corpus harvesting stays available throughout.
+
+Two residual risks remain, both manageable:
+
+- **Portfolio timing.** For the AI engineering roles being targeted, the measured eval results from
+  A are the centrepiece; the platform migration is plumbing that no AI hiring manager weighs. A long
+  B phase delays the artifact that matters most. Mitigation: harvest the corpus early, even if the
+  harness is built later.
+- **Motivation risk.** B is a large rewrite with no user-visible progress until it lands. This is
+  the most likely point for the project to stall.
+
 ---
 
 ## 8. Constraints
@@ -388,7 +436,9 @@ Implications:
   early in Project B.
 - Branch strategy: `feature/gmail-import` has diverged from `main`, and `main` is the deployed
   static app. Needs resolving before or during the migration.
-- Does the web build survive as `apps/web`, or is it retired once the native app ships?
+- How far does `apps/web` lag the native app before it stops being a credible demo? It is kept for
+  the live URL, not for parity, but there is a point past which a stale web build undersells the
+  project rather than showcasing it.
 
 ---
 
